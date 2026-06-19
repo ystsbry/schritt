@@ -1,0 +1,17 @@
+# Binaries
+/bin/
+/schritt
+schritt-*
+
+# Build artifacts
+*.test
+*.out
+coverage.txt
+coverage.html
+dist/
+
+# OS / editor noise
+.DS_Store
+*.swp
+.idea/
+.vscode/

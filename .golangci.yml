@@ -1,0 +1,20 @@
+# golangci-lint v2 設定
+# Docs: https://golangci-lint.run/usage/configuration/
+
+version: "2"
+
+run:
+  timeout: 5m
+
+linters:
+  # "standard" は errcheck / govet / ineffassign / staticcheck / unused を有効化する。
+  default: standard
+
+  settings:
+    errcheck:
+      # TUI 出力系では Fprint 系の戻り値をチェックしてもユーザーに返せる
+      # 復旧手段が無いため、プロジェクト方針として除外する。
+      exclude-functions:
+        - fmt.Fprint
+        - fmt.Fprintln
+        - fmt.Fprintf
