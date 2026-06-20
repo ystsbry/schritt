@@ -22,7 +22,7 @@ func helpView(width, height int) string {
 		{
 			"PBI入力",
 			[][2]string{
-				{"tab", "PBI番号 / 本文 / 補足 のフィールド切替"},
+				{"tab", "PBI番号 / リポジトリ / 本文 / 補足 のフィールド切替"},
 				{"ctrl+r", "リファインメント実行"},
 			},
 		},

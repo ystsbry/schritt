@@ -10,6 +10,10 @@ type SubmitMsg struct {
 	// Notes is optional supplementary context (e.g. what was discussed in
 	// the refinement meeting) that the AI should take into account.
 	Notes string
+	// RepoPaths are the optional paths to the target repositories, each
+	// resolved to an absolute path. When set, the AI consults the codebases.
+	// Nil if none.
+	RepoPaths []string
 }
 
 // GoToDetailMsg asks the app to switch to the detail view for Index.

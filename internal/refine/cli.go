@@ -20,6 +20,18 @@ var ErrCLINotFound = errors.New("AI CLI not found on PATH")
 // exactly as revu drives one review-pr skill from claude and codex.
 const skillName = "refine-pbi"
 
+// skillInvocation builds the by-name skill call passed to a runtime. prefix is
+// the runtime's skill-invocation sigil ("/" for Claude Code, "$" for Codex).
+// The work dir is the positional argument; each repo (if any) is passed as a
+// repeated --repo flag the skill recognises (see SKILL.md).
+func skillInvocation(prefix, workDir string, repoPaths []string) string {
+	s := prefix + skillName + " " + workDir
+	for _, r := range repoPaths {
+		s += " --repo " + r
+	}
+	return s
+}
+
 // sectionFiles maps each output filename to the Result field it populates.
 // The skill (SKILL.md) writes these files into the work dir; this list is the
 // read-back contract. Keep the filenames in sync with SKILL.md's "出力" table.
@@ -45,8 +57,9 @@ type cliSpec struct {
 	progress func(string)
 	// buildArgs returns the argv (excluding bin) to run. workDir is the
 	// directory holding pbi.md/notes.md that the skill must read and write
-	// its output into; it is passed to the skill as its argument.
-	buildArgs func(workDir string) []string
+	// its output into; it is passed to the skill as its argument. repoPaths
+	// are the target repositories to grant read access to, or empty if none.
+	buildArgs func(workDir string, repoPaths []string) []string
 	// installHint is shown when the skill appears not to be installed (the
 	// run produced no section files).
 	installHint string
@@ -67,6 +80,26 @@ func runCLI(ctx context.Context, in Input, spec cliSpec) (Result, error) {
 		return Result{}, fmt.Errorf("%w (%s)", ErrCLINotFound, spec.bin)
 	}
 
+	var repoPaths []string
+	for _, raw := range in.RepoPaths {
+		raw = strings.TrimSpace(raw)
+		if raw == "" {
+			continue
+		}
+		abs, err := filepath.Abs(raw)
+		if err != nil {
+			return Result{}, fmt.Errorf("resolve repo path %q: %w", raw, err)
+		}
+		st, err := os.Stat(abs)
+		if err != nil {
+			return Result{}, fmt.Errorf("repo path %q: %w", raw, err)
+		}
+		if !st.IsDir() {
+			return Result{}, fmt.Errorf("repo path %q is not a directory", raw)
+		}
+		repoPaths = append(repoPaths, abs)
+	}
+
 	work, err := os.MkdirTemp("", "schritt-refine-*")
 	if err != nil {
 		return Result{}, fmt.Errorf("create work dir: %w", err)
@@ -85,7 +118,7 @@ func runCLI(ctx context.Context, in Input, spec cliSpec) (Result, error) {
 	if spec.progress != nil {
 		spec.progress(fmt.Sprintf("%s で $%s を起動中 (PBI #%d)…", spec.name, skillName, in.PBINumber))
 	}
-	cmd := exec.CommandContext(ctx, spec.bin, spec.buildArgs(work)...)
+	cmd := exec.CommandContext(ctx, spec.bin, spec.buildArgs(work, repoPaths)...)
 	// Non-interactive: no stdin passthrough. Capture stderr for diagnostics;
 	// stdout is the agent's prose, which we ignore — the real output is the
 	// section files it writes into the work dir.

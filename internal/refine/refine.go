@@ -19,6 +19,11 @@ type Input struct {
 	// points from the refinement meeting — for the AI to take into account.
 	// Empty when the user provided none.
 	Notes string
+	// RepoPaths are the optional paths to the target repositories. When set,
+	// the skill is granted read access to each and asked to consult the
+	// codebases so the implementation plan and test cases are concrete. Nil or
+	// empty when the user provided none.
+	RepoPaths []string
 }
 
 // Result holds the four refinement sections as markdown. Each field is the

@@ -26,8 +26,8 @@ func (c *CodexRefiner) Refine(ctx context.Context, in Input) (Result, error) {
 		name:     "codex",
 		bin:      bin,
 		progress: c.Progress,
-		buildArgs: func(workDir string) []string {
-			return codexArgs(c.Model, workDir)
+		buildArgs: func(workDir string, repoPaths []string) []string {
+			return codexArgs(c.Model, workDir, repoPaths)
 		},
 		installHint: codexInstallHint,
 	})
@@ -41,19 +41,24 @@ func (c *CodexRefiner) Refine(ctx context.Context, in Input) (Result, error) {
 //     workspace-write` permits the skill to write its files there.
 //   - `--skip-git-repo-check` allows running outside a git repository (the
 //     work dir is a bare temp dir).
-//   - the `$refine-pbi <workDir>` positional is Codex's skill-invocation
-//     syntax — it resolves to ~/.agents/skills/refine-pbi.
-func codexArgs(model, workDir string) []string {
+//   - `--add-dir <repo>` (repeated per repo) grants read access to each target
+//     repository, which lives outside the work dir.
+//   - the `$refine-pbi <workDir> [--repo <r>]...` positional is Codex's
+//     skill-invocation syntax — it resolves to ~/.agents/skills/refine-pbi.
+func codexArgs(model, workDir string, repoPaths []string) []string {
 	args := []string{
 		"exec",
 		"--cd", workDir,
 		"--skip-git-repo-check",
 		"--sandbox", "workspace-write",
 	}
+	for _, r := range repoPaths {
+		args = append(args, "--add-dir", r)
+	}
 	if model != "" {
 		args = append(args, "--model", model)
 	}
-	args = append(args, "$"+skillName+" "+workDir)
+	args = append(args, skillInvocation("$", workDir, repoPaths))
 	return args
 }
 

@@ -53,9 +53,10 @@ var sectionSpec = []struct {
 // SaveInput carries everything Save needs to write a refinement.
 type SaveInput struct {
 	PBINumber int
-	PBITitle  string // optional; derived from the PBI if known
-	PBIBody   string // raw PBI markdown, persisted as pbi.md
-	Notes     string // optional supplementary context, persisted as notes.md
+	PBITitle  string   // optional; derived from the PBI if known
+	PBIBody   string   // raw PBI markdown, persisted as pbi.md
+	Notes     string   // optional supplementary context, persisted as notes.md
+	RepoPaths []string // optional target repository paths, recorded in refinement.yml
 	Result    refine.Result
 	Model     string // recorded under generated_by; optional
 	Now       time.Time
@@ -104,6 +105,7 @@ func Save(home string, in SaveInput) (string, error) {
 	r := model.Refinement{
 		SchemaVersion: model.SchemaVersion,
 		PBI:           model.PBIMeta{Number: in.PBINumber, Title: in.PBITitle},
+		RepoPaths:     in.RepoPaths,
 		GeneratedAt:   in.Now.UTC(),
 		GeneratedBy:   model.GeneratedBy{Tool: "schritt", Model: in.Model},
 		Sections:      sections,

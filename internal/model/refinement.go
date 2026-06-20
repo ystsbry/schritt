@@ -66,6 +66,7 @@ type Section struct {
 type Refinement struct {
 	SchemaVersion int         `yaml:"schema_version"`
 	PBI           PBIMeta     `yaml:"pbi"`
+	RepoPaths     []string    `yaml:"repo_paths,omitempty"`
 	GeneratedAt   time.Time   `yaml:"generated_at"`
 	GeneratedBy   GeneratedBy `yaml:"generated_by"`
 	Sections      []Section   `yaml:"sections"`

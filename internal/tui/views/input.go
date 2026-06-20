@@ -2,6 +2,8 @@ package views
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -20,17 +22,19 @@ type inputField int
 
 const (
 	fieldNumber inputField = iota
+	fieldRepo
 	fieldBody
 	fieldNotes
 	numFields // sentinel: count of fields, for cycling
 )
 
-// Input is the first refinement screen: enter a PBI number, paste the PBI
-// markdown, optionally add supplementary notes (e.g. from the refinement
-// meeting), then submit (Ctrl+R) to run the refinement.
+// Input is the first refinement screen: enter a PBI number, optionally a target
+// repository path, paste the PBI markdown, optionally add supplementary notes
+// (e.g. from the refinement meeting), then submit (Ctrl+R) to run.
 type Input struct {
 	km     keys.KeyMap
 	number textinput.Model
+	repo   textinput.Model
 	body   textarea.Model
 	notes  textarea.Model
 	focus  inputField
@@ -46,6 +50,10 @@ func NewInput(km keys.KeyMap) *Input {
 	num.CharLimit = 9
 	num.Focus()
 
+	repo := textinput.New()
+	repo.Prompt = "リポジトリ: "
+	repo.Placeholder = "対象リポジトリのパス（任意・複数はカンマ区切り）"
+
 	body := textarea.New()
 	body.Placeholder = "ここにPBIのマークダウンを貼り付け…"
 	body.ShowLineNumbers = false
@@ -54,12 +62,13 @@ func NewInput(km keys.KeyMap) *Input {
 	notes.Placeholder = "リファインメント会議で話した内容・前提・決定事項など（任意）…"
 	notes.ShowLineNumbers = false
 
-	return &Input{km: km, number: num, body: body, notes: notes, focus: fieldNumber}
+	return &Input{km: km, number: num, repo: repo, body: body, notes: notes, focus: fieldNumber}
 }
 
 // Reset clears the fields so the screen is fresh for a new PBI.
 func (in *Input) Reset() {
 	in.number.SetValue("")
+	in.repo.SetValue("")
 	in.body.Reset()
 	in.notes.Reset()
 	in.errMsg = ""
@@ -69,11 +78,14 @@ func (in *Input) Reset() {
 func (in *Input) setFocus(f inputField) {
 	in.focus = f
 	in.number.Blur()
+	in.repo.Blur()
 	in.body.Blur()
 	in.notes.Blur()
 	switch f {
 	case fieldNumber:
 		in.number.Focus()
+	case fieldRepo:
+		in.repo.Focus()
 	case fieldBody:
 		in.body.Focus()
 	case fieldNotes:
@@ -87,12 +99,13 @@ func (in *Input) Update(msg tea.Msg) (*Input, tea.Cmd) {
 		in.width = m.Width
 		in.height = m.Height
 		in.number.Width = m.Width - len(in.number.Prompt) - 2
+		in.repo.Width = m.Width - len(in.repo.Prompt) - 2
 		in.body.SetWidth(m.Width - 2)
 		in.notes.SetWidth(m.Width - 2)
-		// Chrome: title, blank, number, blank, body label, notes label,
+		// Chrome: title, blank, number, repo, blank, body label, notes label,
 		// error line, hint line. Split the rest between the two textareas,
 		// giving the PBI body the larger share.
-		avail := m.Height - 9
+		avail := m.Height - 10
 		if avail < 6 {
 			avail = 6
 		}
@@ -121,6 +134,8 @@ func (in *Input) Update(msg tea.Msg) (*Input, tea.Cmd) {
 	switch in.focus {
 	case fieldNumber:
 		in.number, cmd = in.number.Update(msg)
+	case fieldRepo:
+		in.repo, cmd = in.repo.Update(msg)
 	case fieldBody:
 		in.body, cmd = in.body.Update(msg)
 	case fieldNotes:
@@ -129,14 +144,21 @@ func (in *Input) Update(msg tea.Msg) (*Input, tea.Cmd) {
 	return in, cmd
 }
 
-// submit validates the fields and, if valid, emits a SubmitMsg. Notes are
-// optional, so only the number and body are required.
+// submit validates the fields and, if valid, emits a SubmitMsg. Repo and notes
+// are optional, so only the number and body are required. A given repo path
+// must resolve to an existing directory.
 func (in *Input) submit() tea.Cmd {
 	numStr := strings.TrimSpace(in.number.Value())
 	n, err := strconv.Atoi(numStr)
 	if err != nil || n <= 0 {
 		in.errMsg = "PBI番号は正の整数で入力してください"
 		in.setFocus(fieldNumber)
+		return nil
+	}
+	repoPaths, err := in.resolveRepos()
+	if err != nil {
+		in.errMsg = err.Error()
+		in.setFocus(fieldRepo)
 		return nil
 	}
 	if strings.TrimSpace(in.body.Value()) == "" {
@@ -150,8 +172,45 @@ func (in *Input) submit() tea.Cmd {
 			PBINumber: n,
 			PBIBody:   in.body.Value(),
 			Notes:     strings.TrimSpace(in.notes.Value()),
+			RepoPaths: repoPaths,
 		}
 	}
+}
+
+// resolveRepos validates the optional repo field, returning the absolute paths
+// (or nil when left blank). Multiple repositories are comma-separated. Each
+// entry expands a leading "~" and must be an existing directory, so errors
+// surface here rather than deep in the AI run.
+func (in *Input) resolveRepos() ([]string, error) {
+	raw := strings.TrimSpace(in.repo.Value())
+	if raw == "" {
+		return nil, nil
+	}
+	var out []string
+	for _, part := range strings.Split(raw, ",") {
+		p := strings.TrimSpace(part)
+		if p == "" {
+			continue
+		}
+		if p == "~" || strings.HasPrefix(p, "~/") {
+			if home, err := os.UserHomeDir(); err == nil {
+				p = filepath.Join(home, strings.TrimPrefix(p, "~"))
+			}
+		}
+		abs, err := filepath.Abs(p)
+		if err != nil {
+			return nil, fmt.Errorf("リポジトリのパスを解決できません: %v", err)
+		}
+		st, err := os.Stat(abs)
+		if err != nil {
+			return nil, fmt.Errorf("リポジトリのパスが見つかりません: %s", abs)
+		}
+		if !st.IsDir() {
+			return nil, fmt.Errorf("リポジトリのパスはディレクトリではありません: %s", abs)
+		}
+		out = append(out, abs)
+	}
+	return out, nil
 }
 
 func (in *Input) View() string {
@@ -165,6 +224,8 @@ func (in *Input) View() string {
 	b.WriteString(title)
 	b.WriteString("\n\n")
 	b.WriteString(in.number.View())
+	b.WriteByte('\n')
+	b.WriteString(in.repo.View())
 	b.WriteString("\n\n")
 	b.WriteString(label.Render("PBI (markdown):"))
 	b.WriteByte('\n')

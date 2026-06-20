@@ -10,7 +10,7 @@ import (
 )
 
 func TestClaudeArgsInvokesSkillByName(t *testing.T) {
-	args := claudeArgs("opus", "/work")
+	args := claudeArgs("opus", "/work", nil)
 	joined := strings.Join(args, " ")
 	for _, want := range []string{"--model opus", "--add-dir /work", "--permission-mode acceptEdits", "--print"} {
 		if !strings.Contains(joined, want) {
@@ -25,7 +25,7 @@ func TestClaudeArgsInvokesSkillByName(t *testing.T) {
 }
 
 func TestCodexArgsInvokesSkillByName(t *testing.T) {
-	args := codexArgs("gpt-5-codex", "/work")
+	args := codexArgs("gpt-5-codex", "/work", nil)
 	if args[0] != "exec" {
 		t.Fatalf("expected codex exec subcommand first, got %v", args)
 	}
@@ -41,12 +41,45 @@ func TestCodexArgsInvokesSkillByName(t *testing.T) {
 	}
 }
 
+func TestArgsIncludeMultipleReposWhenGiven(t *testing.T) {
+	repos := []string{"/repo/front", "/repo/back"}
+	// claude: every repo is granted via the variadic --add-dir and passed to
+	// the skill as a repeated --repo flag.
+	ca := claudeArgs("", "/work", repos)
+	cj := strings.Join(ca, " ")
+	if !strings.Contains(cj, "--add-dir /work /repo/front /repo/back") {
+		t.Fatalf("claudeArgs should grant all repos via --add-dir: %v", ca)
+	}
+	if last := ca[len(ca)-1]; last != "/refine-pbi /work --repo /repo/front --repo /repo/back" {
+		t.Fatalf("claude skill invocation should pass each --repo, got %q", last)
+	}
+	// codex: each repo via its own --add-dir; repeated --repo in the invocation.
+	xa := codexArgs("", "/work", repos)
+	xj := strings.Join(xa, " ")
+	if !strings.Contains(xj, "--add-dir /repo/front") || !strings.Contains(xj, "--add-dir /repo/back") {
+		t.Fatalf("codexArgs should grant each repo via --add-dir: %v", xa)
+	}
+	if last := xa[len(xa)-1]; last != "$refine-pbi /work --repo /repo/front --repo /repo/back" {
+		t.Fatalf("codex skill invocation should pass each --repo, got %q", last)
+	}
+}
+
 func TestArgsOmitModelWhenEmpty(t *testing.T) {
-	if strings.Contains(strings.Join(claudeArgs("", "/w"), " "), "--model") {
+	if strings.Contains(strings.Join(claudeArgs("", "/w", nil), " "), "--model") {
 		t.Fatalf("claudeArgs should omit --model when empty")
 	}
-	if strings.Contains(strings.Join(codexArgs("", "/w"), " "), "--model") {
+	if strings.Contains(strings.Join(codexArgs("", "/w", nil), " "), "--model") {
 		t.Fatalf("codexArgs should omit --model when empty")
+	}
+}
+
+func TestRefineRejectsBadRepoPath(t *testing.T) {
+	bin := fakeCLI(t)
+	_, err := (&ClaudeRefiner{Bin: bin}).Refine(context.Background(), Input{
+		PBINumber: 1, PBIBody: "x", RepoPaths: []string{"/no/such/dir/schritt-test"},
+	})
+	if err == nil {
+		t.Fatalf("expected error for non-existent repo path")
 	}
 }
 

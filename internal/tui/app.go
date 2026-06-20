@@ -237,6 +237,7 @@ func (a *App) runRefine(in views.SubmitMsg) tea.Cmd {
 			PBINumber: in.PBINumber,
 			PBIBody:   in.PBIBody,
 			Notes:     in.Notes,
+			RepoPaths: in.RepoPaths,
 		})
 		if err != nil {
 			return refineDoneMsg{err: err}
@@ -245,6 +246,7 @@ func (a *App) runRefine(in views.SubmitMsg) tea.Cmd {
 			PBINumber: in.PBINumber,
 			PBIBody:   in.PBIBody,
 			Notes:     in.Notes,
+			RepoPaths: in.RepoPaths,
 			Result:    res,
 			Model:     mdl,
 			Now:       time.Now(),
