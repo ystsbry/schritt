@@ -3,18 +3,22 @@ package tui
 import (
 	"testing"
 
+	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/ystsbry/schritt/internal/model"
+	"github.com/ystsbry/schritt/internal/refine"
+	"github.com/ystsbry/schritt/internal/tui/views"
 )
 
-func newTestApp() *App {
-	return NewApp(Config{Items: model.SampleItems()})
+func newTestApp(t *testing.T) *App {
+	t.Helper()
+	// Home is a temp dir so Save/Load stay off the real ~/.schritt.
+	return NewApp(Config{Refiner: refine.DemoRefiner{}, Home: t.TempDir()})
 }
 
-// send pushes a message through Update and returns the app. Any command the
-// update emits is executed and the resulting message fed back, mirroring what
-// the Bubble Tea runtime does — navigation relies on those follow-up messages.
+// send pushes a message through Update and drains the resulting command so
+// follow-up messages (navigation, refine completion) are delivered, mirroring
+// the Bubble Tea runtime.
 func send(t *testing.T, a *App, msg tea.Msg) *App {
 	t.Helper()
 	m, cmd := a.Update(msg)
@@ -22,45 +26,83 @@ func send(t *testing.T, a *App, msg tea.Msg) *App {
 	if !ok {
 		t.Fatalf("Update returned %T, want *App", m)
 	}
-	if cmd != nil {
-		if out := cmd(); out != nil {
-			return send(t, got, out)
-		}
-	}
-	return got
+	return drain(t, got, cmd)
 }
 
-func TestEnterOpensDetail(t *testing.T) {
-	a := newTestApp()
-	a = send(t, a, tea.WindowSizeMsg{Width: 80, Height: 24})
-	if !a.IsList() {
-		t.Fatalf("expected to start in list view")
+// drain executes cmd and applies whatever message it yields. It unwraps
+// tea.Batch (used by the refine flow) and feeds a single spinner tick without
+// following its next tick, which would otherwise loop forever in a test.
+func drain(t *testing.T, a *App, cmd tea.Cmd) *App {
+	t.Helper()
+	if cmd == nil {
+		return a
 	}
+	switch msg := cmd().(type) {
+	case nil:
+		return a
+	case tea.BatchMsg:
+		for _, c := range msg {
+			a = drain(t, a, c)
+		}
+		return a
+	case spinner.TickMsg:
+		m, _ := a.Update(msg)
+		return m.(*App)
+	default:
+		m, next := a.Update(msg)
+		return drain(t, m.(*App), next)
+	}
+}
+
+func TestStartsInInput(t *testing.T) {
+	a := newTestApp(t)
+	a = send(t, a, tea.WindowSizeMsg{Width: 80, Height: 24})
+	if !a.IsInput() {
+		t.Fatalf("expected to start in the input view")
+	}
+}
+
+func TestSubmitRunsRefinementAndShowsResult(t *testing.T) {
+	a := newTestApp(t)
+	a = send(t, a, tea.WindowSizeMsg{Width: 80, Height: 24})
+
+	// Simulate the input view emitting a submit. The demo refiner returns
+	// canned sections, so the flow runs to completion synchronously here.
+	a = send(t, a, views.SubmitMsg{PBINumber: 42, PBIBody: "# Sample PBI\n\nDo the thing."})
+	if !a.IsList() {
+		t.Fatalf("expected list (result) view after refinement, state=%v", a.state)
+	}
+	if a.ref == nil || a.ref.PBI.Number != 42 {
+		t.Fatalf("expected loaded refinement for PBI #42, got %+v", a.ref)
+	}
+	if len(a.ref.Sections) != 4 {
+		t.Fatalf("expected 4 sections, got %d", len(a.ref.Sections))
+	}
+}
+
+func TestOpenSectionAndBack(t *testing.T) {
+	a := newTestApp(t)
+	a = send(t, a, tea.WindowSizeMsg{Width: 80, Height: 24})
+	a = send(t, a, views.SubmitMsg{PBINumber: 7, PBIBody: "x"})
 	a = send(t, a, tea.KeyMsg{Type: tea.KeyEnter})
 	if !a.IsDetail() {
 		t.Fatalf("expected detail view after Enter")
 	}
-}
-
-func TestBackReturnsToList(t *testing.T) {
-	a := newTestApp()
-	a = send(t, a, tea.WindowSizeMsg{Width: 80, Height: 24})
-	a = send(t, a, tea.KeyMsg{Type: tea.KeyEnter})
 	a = send(t, a, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("l")})
 	if !a.IsList() {
 		t.Fatalf("expected list view after back")
 	}
 }
 
-func TestUnknownCommandSetsError(t *testing.T) {
-	a := newTestApp()
+func TestNewCommandReturnsToInput(t *testing.T) {
+	a := newTestApp(t)
+	a = send(t, a, tea.WindowSizeMsg{Width: 80, Height: 24})
+	a = send(t, a, views.SubmitMsg{PBINumber: 1, PBIBody: "x"})
+	// Enter command mode and run :new.
 	a = send(t, a, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(":")})
-	if !a.cmdMode {
-		t.Fatalf("expected to enter command mode")
-	}
-	a = send(t, a, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("bogus")})
+	a = send(t, a, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("new")})
 	a = send(t, a, tea.KeyMsg{Type: tea.KeyEnter})
-	if !a.statusErr {
-		t.Fatalf("expected an error status for an unknown command")
+	if !a.IsInput() {
+		t.Fatalf("expected input view after :new")
 	}
 }

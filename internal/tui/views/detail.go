@@ -10,20 +10,26 @@ import (
 	"github.com/ystsbry/schritt/internal/tui/keys"
 )
 
-// Detail renders the body of a single item inside a scrollable viewport.
+// Detail renders one refinement section's markdown body inside a scrollable
+// viewport.
 type Detail struct {
-	items    []model.Item
+	ref      *model.Refinement
 	km       keys.KeyMap
 	index    int
 	viewport viewport.Model
 	ready    bool
 }
 
-func NewDetail(items []model.Item, km keys.KeyMap) *Detail {
-	return &Detail{items: items, km: km}
+func NewDetail(km keys.KeyMap) *Detail {
+	return &Detail{km: km}
 }
 
-// SetIndex selects which item to show and resets the scroll position.
+// SetRefinement swaps in the refinement to read sections from.
+func (d *Detail) SetRefinement(r *model.Refinement) {
+	d.ref = r
+}
+
+// SetIndex selects which section to show and resets the scroll position.
 func (d *Detail) SetIndex(i int) {
 	d.index = i
 	if d.ready {
@@ -32,18 +38,25 @@ func (d *Detail) SetIndex(i int) {
 	}
 }
 
-func (d *Detail) content() string {
-	if d.index < 0 || d.index >= len(d.items) {
-		return ""
+func (d *Detail) section() (model.Section, bool) {
+	if d.ref == nil || d.index < 0 || d.index >= len(d.ref.Sections) {
+		return model.Section{}, false
 	}
-	return d.items[d.index].Body
+	return d.ref.Sections[d.index], true
+}
+
+func (d *Detail) content() string {
+	if s, ok := d.section(); ok {
+		return s.Body
+	}
+	return ""
 }
 
 func (d *Detail) title() string {
-	if d.index < 0 || d.index >= len(d.items) {
-		return ""
+	if s, ok := d.section(); ok {
+		return s.Title
 	}
-	return d.items[d.index].Title
+	return ""
 }
 
 func (d *Detail) Update(msg tea.Msg) (*Detail, tea.Cmd) {

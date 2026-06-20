@@ -1,7 +1,16 @@
-.PHONY: build test run tidy fmt vet lint clean install uninstall
+.PHONY: build test run tidy fmt vet lint clean install uninstall \
+	install-skills uninstall-skills install-codex-skills uninstall-codex-skills
 
 BIN := bin/schritt
 PKG := ./cmd/schritt
+
+# The refine-pbi skill is a single source of truth (skills/refine-pbi/SKILL.md)
+# installed into each runtime's skill directory, then invoked by name:
+#   Claude Code: ~/.claude/skills  (invoked as /refine-pbi)
+#   Codex CLI:   ~/.agents/skills  (invoked as $refine-pbi, via scripts/install-codex.sh)
+# Override the claude dir with `make install-skills CLAUDE_SKILLS_DIR=/path`.
+CLAUDE_SKILLS_DIR ?= $(HOME)/.claude/skills
+SKILLS_SRC := $(CURDIR)/skills
 
 # schritt は cgo を使わないので、クロスコンパイルや QEMU 環境での
 # gcc 絡みのトラブルを避けるため既定で無効化する。
@@ -46,3 +55,36 @@ install: build
 uninstall:
 	rm -f $(INSTALL_DIR)/schritt
 	@echo "Removed schritt from $(INSTALL_DIR)"
+
+install-skills:
+	@mkdir -p $(CLAUDE_SKILLS_DIR)
+	@for src in $(SKILLS_SRC)/*/; do \
+		name=$$(basename $$src); \
+		target=$(CLAUDE_SKILLS_DIR)/$$name; \
+		if [ -L $$target ]; then \
+			rm -f $$target; \
+		elif [ -e $$target ]; then \
+			echo "skip: $$target already exists (not a symlink)"; \
+			continue; \
+		fi; \
+		ln -s $$src $$target; \
+		echo "Linked $$target -> $$src"; \
+	done
+
+uninstall-skills:
+	@for src in $(SKILLS_SRC)/*/; do \
+		name=$$(basename $$src); \
+		target=$(CLAUDE_SKILLS_DIR)/$$name; \
+		if [ -L $$target ]; then \
+			rm -f $$target; \
+			echo "Removed $$target"; \
+		fi; \
+	done
+
+# Codex loads skills from ~/.agents/skills and needs a directory-level symlink
+# (it drops file-level symlinks). The script handles that; see its header.
+install-codex-skills:
+	@$(CURDIR)/scripts/install-codex.sh
+
+uninstall-codex-skills:
+	@$(CURDIR)/scripts/install-codex.sh --uninstall

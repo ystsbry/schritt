@@ -9,6 +9,8 @@ type KeyMap struct {
 	Down    key.Binding
 	Enter   key.Binding
 	Back    key.Binding
+	Tab     key.Binding
+	Submit  key.Binding
 	Command key.Binding
 	Help    key.Binding
 	Quit    key.Binding
@@ -32,6 +34,14 @@ func DefaultKeyMap() KeyMap {
 			key.WithKeys("l", "esc"),
 			key.WithHelp("l", "back"),
 		),
+		Tab: key.NewBinding(
+			key.WithKeys("tab"),
+			key.WithHelp("tab", "next field"),
+		),
+		Submit: key.NewBinding(
+			key.WithKeys("ctrl+r"),
+			key.WithHelp("ctrl+r", "refine"),
+		),
 		Command: key.NewBinding(
 			key.WithKeys(":"),
 			key.WithHelp(":", "command"),
@@ -41,8 +51,8 @@ func DefaultKeyMap() KeyMap {
 			key.WithHelp("?", "help"),
 		),
 		Quit: key.NewBinding(
-			key.WithKeys("q", "ctrl+c"),
-			key.WithHelp("q", "quit"),
+			key.WithKeys("ctrl+c"),
+			key.WithHelp("ctrl+c", "quit"),
 		),
 	}
 }

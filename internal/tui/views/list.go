@@ -1,6 +1,7 @@
 package views
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/key"
@@ -11,21 +12,35 @@ import (
 	"github.com/ystsbry/schritt/internal/tui/keys"
 )
 
-// List is the top-level screen: a scrollable list of items.
+// List is the refinement result overview: a header identifying the PBI and a
+// selectable list of the refinement sections.
 type List struct {
-	items  []model.Item
+	ref    *model.Refinement
 	km     keys.KeyMap
 	cursor int
 	width  int
 	height int
 }
 
-func NewList(items []model.Item, km keys.KeyMap) *List {
-	return &List{items: items, km: km}
+func NewList(km keys.KeyMap) *List {
+	return &List{km: km}
 }
 
-// Cursor returns the index of the currently selected item.
+// SetRefinement swaps in the refinement to display and resets the cursor.
+func (l *List) SetRefinement(r *model.Refinement) {
+	l.ref = r
+	l.cursor = 0
+}
+
+// Cursor returns the index of the selected section.
 func (l *List) Cursor() int { return l.cursor }
+
+func (l *List) sections() []model.Section {
+	if l.ref == nil {
+		return nil
+	}
+	return l.ref.Sections
+}
 
 func (l *List) Update(msg tea.Msg) (*List, tea.Cmd) {
 	switch m := msg.(type) {
@@ -34,9 +49,10 @@ func (l *List) Update(msg tea.Msg) (*List, tea.Cmd) {
 		l.height = m.Height
 		return l, nil
 	case tea.KeyMsg:
+		secs := l.sections()
 		switch {
 		case key.Matches(m, l.km.Down):
-			if l.cursor < len(l.items)-1 {
+			if l.cursor < len(secs)-1 {
 				l.cursor++
 			}
 		case key.Matches(m, l.km.Up):
@@ -44,7 +60,7 @@ func (l *List) Update(msg tea.Msg) (*List, tea.Cmd) {
 				l.cursor--
 			}
 		case key.Matches(m, l.km.Enter):
-			if len(l.items) > 0 {
+			if len(secs) > 0 {
 				return l, goToDetail(l.cursor)
 			}
 		}
@@ -53,10 +69,14 @@ func (l *List) Update(msg tea.Msg) (*List, tea.Cmd) {
 }
 
 func (l *List) View() string {
-	title := lipgloss.NewStyle().
-		Bold(true).
-		Foreground(lipgloss.Color("214")).
-		Render("schritt")
+	header := "schritt refinement"
+	if l.ref != nil {
+		header = fmt.Sprintf("リファインメント結果 — PBI #%d", l.ref.PBI.Number)
+		if l.ref.PBI.Title != "" {
+			header += " " + l.ref.PBI.Title
+		}
+	}
+	title := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("214")).Render(header)
 
 	selected := lipgloss.NewStyle().Foreground(lipgloss.Color("82")).Bold(true)
 	faint := lipgloss.NewStyle().Faint(true)
@@ -65,12 +85,13 @@ func (l *List) View() string {
 	b.WriteString(title)
 	b.WriteString("\n\n")
 
-	if len(l.items) == 0 {
-		b.WriteString(faint.Render("(no items)"))
+	secs := l.sections()
+	if len(secs) == 0 {
+		b.WriteString(faint.Render("(セクションがありません)"))
 	}
-	for i, it := range l.items {
+	for i, s := range secs {
 		cursor := "  "
-		line := it.Title
+		line := s.Title
 		if i == l.cursor {
 			cursor = "> "
 			line = selected.Render(line)
@@ -81,6 +102,6 @@ func (l *List) View() string {
 	}
 
 	b.WriteString("\n")
-	b.WriteString(faint.Render("j/k move · enter open · ? help · q quit"))
+	b.WriteString(faint.Render("j/k 移動 · enter 開く · ? ヘルプ · ctrl+c 終了"))
 	return b.String()
 }

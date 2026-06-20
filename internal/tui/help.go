@@ -13,34 +13,42 @@ func helpView(width, height int) string {
 		Bold(true).
 		Foreground(lipgloss.Color("214")).
 		Padding(0, 1).
-		Render("schritt — keybindings")
+		Render("schritt — キーバインド")
 
 	sections := []struct {
 		heading string
 		rows    [][2]string
 	}{
 		{
-			"Navigation",
+			"PBI入力",
 			[][2]string{
-				{"j / ↓", "next item / line down"},
-				{"k / ↑", "prev item / line up"},
-				{"Enter", "open detail (from list)"},
-				{"l / Esc", "back to list (from detail)"},
+				{"tab", "PBI番号 / 本文 / 補足 のフィールド切替"},
+				{"ctrl+r", "リファインメント実行"},
 			},
 		},
 		{
-			"Commands (after :)",
+			"結果の閲覧",
 			[][2]string{
-				{":quit / :q", "quit"},
-				{":help / :h", "show this help"},
+				{"j / ↓", "次のセクション / 行送り"},
+				{"k / ↑", "前のセクション / 行戻し"},
+				{"Enter", "セクションを開く"},
+				{"l / Esc", "一覧に戻る"},
 			},
 		},
 		{
-			"Misc",
+			"コマンド ( : の後)",
 			[][2]string{
-				{"?", "toggle this help"},
-				{":", "command mode"},
-				{"q", "quit"},
+				{":new / :n", "新しいPBIを入力"},
+				{":help / :h", "このヘルプ"},
+				{":quit / :q", "終了"},
+			},
+		},
+		{
+			"その他",
+			[][2]string{
+				{"?", "このヘルプの表示/非表示"},
+				{":", "コマンドモード"},
+				{"ctrl+c", "終了"},
 			},
 		},
 	}
@@ -63,7 +71,7 @@ func helpView(width, height int) string {
 		}
 		b.WriteByte('\n')
 	}
-	b.WriteString(lipgloss.NewStyle().Faint(true).Render("press ? or Esc to return"))
+	b.WriteString(lipgloss.NewStyle().Faint(true).Render("? または Esc で戻る"))
 
 	innerW := width - 4
 	if innerW < 30 {
