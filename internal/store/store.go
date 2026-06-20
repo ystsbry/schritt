@@ -16,6 +16,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -220,5 +221,62 @@ func Load(dir string) (*model.Refinement, error) {
 		}
 		s.Body = string(body)
 	}
+
+	// Later-stage artifacts, when present.
+	if reps, err := readReportDir(filepath.Join(abs, reportsSubdir)); err != nil {
+		return nil, err
+	} else {
+		r.ImplementReports = reps
+	}
+	if reps, err := readReportDir(filepath.Join(abs, verificationSubdir)); err != nil {
+		return nil, err
+	} else {
+		r.VerifyReports = reps
+	}
 	return &r, nil
+}
+
+// readReportDir reads the top-level *.md files in dir as ordered reports
+// (sorted lexically so 01-, 02-, … keep their order). Subdirectories such as
+// verification/screenshots/ are ignored. Returns nil when dir is absent.
+func readReportDir(dir string) ([]model.Report, error) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("read %s: %w", dir, err)
+	}
+	var names []string
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		if strings.EqualFold(filepath.Ext(e.Name()), ".md") {
+			names = append(names, e.Name())
+		}
+	}
+	sort.Strings(names)
+	var reps []model.Report
+	for _, name := range names {
+		raw, err := os.ReadFile(filepath.Join(dir, name))
+		if err != nil {
+			return nil, fmt.Errorf("read report %s: %w", name, err)
+		}
+		body := string(raw)
+		reps = append(reps, model.Report{Title: reportTitle(name, body), File: name, Body: body})
+	}
+	return reps, nil
+}
+
+// reportTitle derives a label from the first markdown heading, falling back to
+// the filename stem.
+func reportTitle(file, body string) string {
+	for _, line := range strings.Split(body, "\n") {
+		t := strings.TrimSpace(line)
+		if strings.HasPrefix(t, "# ") {
+			return strings.TrimSpace(t[2:])
+		}
+	}
+	return strings.TrimSuffix(file, filepath.Ext(file))
 }

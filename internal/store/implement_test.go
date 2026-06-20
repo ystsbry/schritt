@@ -63,6 +63,42 @@ func TestReadPBI(t *testing.T) {
 	}
 }
 
+func TestLoadIncludesReports(t *testing.T) {
+	home := t.TempDir()
+	dir, err := Save(home, SaveInput{
+		PBINumber: 1, PBIBody: "# PBI",
+		Result: refine.Result{
+			Implementation: []refine.Doc{{File: "01-x.md", Title: "x", Body: "# x\n"}},
+			Integration:    []refine.Doc{{File: "01-s.md", Title: "s", Body: "# s\n"}},
+		},
+		Now: time.Now(),
+	})
+	if err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+	if _, err := SaveReport(dir, "01-x.md", "# 実装レポート\n\n内容\n"); err != nil {
+		t.Fatalf("SaveReport: %v", err)
+	}
+	if _, err := SaveVerification(dir, "01-s.md", "# 検証レポート\n\nPASS\n", nil); err != nil {
+		t.Fatalf("SaveVerification: %v", err)
+	}
+
+	r, err := Load(dir)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if len(r.ImplementReports) != 1 || r.ImplementReports[0].Title != "実装レポート" {
+		t.Fatalf("ImplementReports = %+v", r.ImplementReports)
+	}
+	if len(r.VerifyReports) != 1 || r.VerifyReports[0].Title != "検証レポート" {
+		t.Fatalf("VerifyReports = %+v", r.VerifyReports)
+	}
+	// Entries: PO(1)+impl(1)+unit(1)+integ(1)+implReport(1)+verifyReport(1) = 6.
+	if got := len(r.Entries()); got != 6 {
+		t.Fatalf("expected 6 flattened entries, got %d", got)
+	}
+}
+
 func TestReportNameAndSaveReport(t *testing.T) {
 	if got := ReportName("implementation/01-design.md"); got != "01-design.md" {
 		t.Fatalf("ReportName = %q", got)

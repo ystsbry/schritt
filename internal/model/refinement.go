@@ -86,6 +86,15 @@ type Entry struct {
 	Body  string
 }
 
+// Report is a per-step/per-scenario markdown report produced by a later
+// pipeline stage (implement → reports/, verify → verification/). Not part of
+// refinement.yml; loaded from disk when present.
+type Report struct {
+	Title string
+	File  string // base filename, e.g. "01-design.md"
+	Body  string
+}
+
 // Refinement is the full result loaded from a refinement.yml directory.
 type Refinement struct {
 	SchemaVersion int         `yaml:"schema_version"`
@@ -95,8 +104,11 @@ type Refinement struct {
 	GeneratedBy   GeneratedBy `yaml:"generated_by"`
 	Sections      []Section   `yaml:"sections"`
 
-	// Derived (not persisted in YAML).
-	BaseDir string `yaml:"-"`
+	// Derived (not persisted in YAML). Loaded from sibling directories when
+	// the later stages have run.
+	BaseDir          string   `yaml:"-"`
+	ImplementReports []Report `yaml:"-"` // reports/ (実装レポート)
+	VerifyReports    []Report `yaml:"-"` // verification/ (検証レポート)
 }
 
 // Entries flattens the refinement into the list of viewable rows, in section
@@ -115,6 +127,12 @@ func (r *Refinement) Entries() []Entry {
 			continue
 		}
 		es = append(es, Entry{Title: s.Title, Body: s.Body})
+	}
+	for i, rep := range r.ImplementReports {
+		es = append(es, Entry{Title: fmt.Sprintf("実装レポート ▸ %d. %s", i+1, rep.Title), Body: rep.Body})
+	}
+	for i, rep := range r.VerifyReports {
+		es = append(es, Entry{Title: fmt.Sprintf("検証レポート ▸ %d. %s", i+1, rep.Title), Body: rep.Body})
 	}
 	return es
 }

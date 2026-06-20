@@ -36,12 +36,17 @@ const (
 
 // Config carries the inputs NewApp needs from the caller.
 type Config struct {
-	// Refiner runs the AI refinement. Required.
+	// Refiner runs the AI refinement. Required unless Refinement is set
+	// (view-only mode).
 	Refiner refine.Refiner
 	// Home is schritt's data directory (defaults applied by the caller).
 	Home string
 	// Model is recorded in the saved refinement's provenance. Optional.
 	Model string
+	// Refinement, when set, opens the app in view-only mode: it starts on the
+	// result list showing this already-loaded refinement (and any
+	// implement/verify reports), with no input/refine step.
+	Refinement *model.Refinement
 }
 
 // refineDoneMsg is delivered when the async refinement finishes.
@@ -59,11 +64,12 @@ type App struct {
 	spinner spinner.Model
 	state   viewState
 
-	refiner refine.Refiner
-	home    string
-	model   string
-	ref     *model.Refinement
-	pending views.SubmitMsg
+	refiner  refine.Refiner
+	home     string
+	model    string
+	ref      *model.Refinement
+	pending  views.SubmitMsg
+	viewOnly bool
 
 	cmdMode   bool
 	cmdInput  textinput.Model
@@ -84,7 +90,7 @@ func NewApp(cfg Config) *App {
 	sp := spinner.New()
 	sp.Spinner = spinner.Dot
 
-	return &App{
+	a := &App{
 		km:       km,
 		input:    views.NewInput(km),
 		list:     views.NewList(km),
@@ -96,6 +102,15 @@ func NewApp(cfg Config) *App {
 		model:    cfg.Model,
 		cmdInput: ti,
 	}
+	if cfg.Refinement != nil {
+		// View-only mode: jump straight to the result list.
+		a.viewOnly = true
+		a.ref = cfg.Refinement
+		a.list.SetRefinement(cfg.Refinement)
+		a.detail.SetRefinement(cfg.Refinement)
+		a.state = viewList
+	}
+	return a
 }
 
 func (a *App) Init() tea.Cmd { return textinput.Blink }
@@ -301,6 +316,10 @@ func (a *App) runCommand(input string) (tea.Model, tea.Cmd) {
 		a.showHelp = true
 		return a, nil
 	case "new", "n":
+		if a.viewOnly {
+			a.setError("view モードでは :new は使えません")
+			return a, nil
+		}
 		a.input.Reset()
 		a.state = viewInput
 		a.clearStatus()

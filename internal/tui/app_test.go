@@ -6,6 +6,7 @@ import (
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/ystsbry/schritt/internal/model"
 	"github.com/ystsbry/schritt/internal/refine"
 	"github.com/ystsbry/schritt/internal/tui/views"
 )
@@ -51,6 +52,24 @@ func drain(t *testing.T, a *App, cmd tea.Cmd) *App {
 	default:
 		m, next := a.Update(msg)
 		return drain(t, m.(*App), next)
+	}
+}
+
+func TestViewOnlyStartsInList(t *testing.T) {
+	ref := &model.Refinement{
+		PBI:              model.PBIMeta{Number: 7},
+		ImplementReports: []model.Report{{Title: "実装レポート", File: "01.md", Body: "# 実装レポート\n"}},
+		VerifyReports:    []model.Report{{Title: "検証レポート", File: "01.md", Body: "# 検証レポート\n"}},
+	}
+	a := NewApp(Config{Refinement: ref})
+	a = send(t, a, tea.WindowSizeMsg{Width: 80, Height: 24})
+	if !a.IsList() {
+		t.Fatalf("view-only app should start on the result list")
+	}
+	// Reports are browsable: open the first entry.
+	a = send(t, a, tea.KeyMsg{Type: tea.KeyEnter})
+	if !a.IsDetail() {
+		t.Fatalf("expected detail view after Enter in view-only mode")
 	}
 }
 
