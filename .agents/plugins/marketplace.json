@@ -1,0 +1,11 @@
+{
+  "name": "schritt",
+  "description": "schritt のスキル群を Codex プラグインとして配布するローカルマーケットプレース。",
+  "plugins": [
+    {
+      "name": "schritt",
+      "description": "refine-pbi / implement-step / verify-e2e を束ねた schritt プラグイン。",
+      "source": { "source": "local", "path": "./plugin" }
+    }
+  ]
+}

@@ -23,7 +23,7 @@
 set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-SKILLS_SRC="$REPO_DIR/skills"
+SKILLS_SRC="$REPO_DIR/plugin/skills"
 AGENTS_HOME="${AGENTS_HOME:-$HOME/.agents}"
 DEST_PARENT="$AGENTS_HOME/skills"
 

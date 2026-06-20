@@ -135,5 +135,5 @@ func installHint(engine string) string {
 リポジトリのルートで scripts/install-codex.sh を実行し、codex を再起動してください。`
 	}
 	return `implement-step skill が Claude Code に見つからない可能性があります。
-リポジトリのルートで make install-skills を実行してください。`
+リポジトリのルートで make install-plugin を実行してください。`
 }

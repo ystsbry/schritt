@@ -18,8 +18,8 @@ func TestClaudeArgsInvokeSkillByName(t *testing.T) {
 			t.Fatalf("claude Args missing %q in %v", want, args)
 		}
 	}
-	if last := args[len(args)-1]; last != "/refine-pbi /work" {
-		t.Fatalf("expected trailing skill invocation, got %q", last)
+	if last := args[len(args)-1]; last != "/schritt:refine-pbi /work" {
+		t.Fatalf("expected namespaced plugin skill invocation, got %q", last)
 	}
 }
 
@@ -48,7 +48,7 @@ func TestArgsGrantExtraDirsAndSkillArgs(t *testing.T) {
 	if !strings.Contains(strings.Join(c, " "), "--add-dir /work /repo/front /repo/back") {
 		t.Fatalf("claude should grant all dirs via --add-dir: %v", c)
 	}
-	if last := c[len(c)-1]; last != "/refine-pbi /work --repo /repo/front --repo /repo/back" {
+	if last := c[len(c)-1]; last != "/schritt:refine-pbi /work --repo /repo/front --repo /repo/back" {
 		t.Fatalf("claude invocation should carry skill args, got %q", last)
 	}
 

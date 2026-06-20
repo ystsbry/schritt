@@ -1,0 +1,7 @@
+{
+  "name": "schritt",
+  "version": "0.1.0",
+  "description": "PBIからリファインメント→実装→動作確認を進める schritt のスキル群。refine-pbi / implement-step / verify-e2e を提供する。",
+  "author": { "name": "ystsbry" },
+  "skills": "./skills/"
+}

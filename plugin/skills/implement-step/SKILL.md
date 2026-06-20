@@ -10,8 +10,8 @@ description: リファインメント済みの実装計画のうち、1つの実
 ## 入力
 
 ```
-/implement-step <WORK_DIR> [--repo <REPO_DIR>]...      # Claude Code
-$implement-step <WORK_DIR> [--repo <REPO_DIR>]...      # OpenAI Codex CLI
+/schritt:implement-step <WORK_DIR> [--repo <REPO_DIR>]...   # Claude Code (plugin)
+$implement-step <WORK_DIR> [--repo <REPO_DIR>]...           # OpenAI Codex CLI
 ```
 
 - `<WORK_DIR>` (任意): 作業ディレクトリのパス。

@@ -10,8 +10,8 @@ description: リファインメントのE2Eシナリオ1本に沿って、CDP経
 ## 入力
 
 ```
-/verify-e2e <WORK_DIR> --url <APP_URL> [--repo <REPO_DIR>]...      # Claude Code
-$verify-e2e <WORK_DIR> --url <APP_URL> [--repo <REPO_DIR>]...      # OpenAI Codex CLI
+/schritt:verify-e2e <WORK_DIR> --url <APP_URL> [--repo <REPO_DIR>]...   # Claude Code (plugin)
+$verify-e2e <WORK_DIR> --url <APP_URL> [--repo <REPO_DIR>]...           # OpenAI Codex CLI
 ```
 
 - `<WORK_DIR>` (任意): 作業ディレクトリのパス。

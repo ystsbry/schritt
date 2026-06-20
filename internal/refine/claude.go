@@ -7,8 +7,9 @@ import (
 )
 
 // ClaudeRefiner runs the refinement via the `claude` CLI (Claude Code). It
-// invokes the refine-pbi skill by name (`/refine-pbi <dir>`), so the skill must
-// be installed under ~/.claude/skills (see `make install-skills`).
+// invokes the refine-pbi skill via the schritt plugin (`/schritt:refine-pbi
+// <dir>`), so the plugin must be installed under ~/.claude/plugins (see
+// `make install-plugin`).
 type ClaudeRefiner struct {
 	// Bin overrides the claude binary. Empty falls back to "claude" on PATH.
 	Bin string

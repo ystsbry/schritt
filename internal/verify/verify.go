@@ -184,6 +184,6 @@ func installHint(engine string) string {
 また、ブラウザMCP（chrome-devtools-mcp）と Chrome が利用できる必要があります。`
 	}
 	return `verify-e2e skill が Claude Code に見つからない可能性があります。
-リポジトリのルートで make install-skills を実行してください。
+リポジトリのルートで make install-plugin を実行してください。
 また、ブラウザMCP（chrome-devtools-mcp）と Chrome が利用できる必要があります。`
 }

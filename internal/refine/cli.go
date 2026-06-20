@@ -12,10 +12,10 @@ import (
 	"github.com/ystsbry/schritt/internal/agent"
 )
 
-// skillName is the refine-pbi skill's name. It is invoked by this name from
-// each runtime — "/refine-pbi" in Claude Code, "$refine-pbi" in Codex — so the
-// single skills/refine-pbi/SKILL.md is the source of truth for both engines,
-// exactly as revu drives one review-pr skill from claude and codex.
+// skillName is the refine-pbi skill's name. The agent package builds the
+// runtime-specific invocation from it: "/schritt:refine-pbi" (Claude plugin)
+// or "$refine-pbi" (Codex). The single plugin/skills/refine-pbi/SKILL.md is the
+// source of truth for both engines.
 const skillName = "refine-pbi"
 
 // Directory sections: the skill writes one markdown file per step/scenario into
@@ -143,15 +143,15 @@ func installHint(engine string) string {
 
   scripts/install-codex.sh
 
-これは skills/* を ~/.agents/skills/ にシンボリックリンクします
+これは plugin/skills/* を ~/.agents/skills/ にシンボリックリンクします
 (codex はファイル単位の symlink を落とすため、ディレクトリごとリンクします)。`
 	}
 	return `refine-pbi skill が Claude Code に見つからない可能性があります。
 リポジトリのルートで次を実行してインストールしてください:
 
-  make install-skills
+  make install-plugin
 
-これは skills/* を ~/.claude/skills/ にシンボリックリンクします。`
+これは plugin/ を ~/.claude/plugins/schritt にシンボリックリンクします。`
 }
 
 // readDocs reads every *.md file in dir as an ordered Doc. Files are sorted

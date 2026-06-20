@@ -95,14 +95,23 @@ func (s Spec) bin() string {
 	return DefaultBin(s.Engine)
 }
 
-// Invocation returns the by-name skill call string passed to the engine, e.g.
-// "/refine-pbi /work --repo /repo" (Claude) or "$implement-step /work" (Codex).
+// PluginName is the name of schritt's Claude Code plugin (see
+// plugin/.claude-plugin/plugin.json). Plugin skills are namespaced by the
+// plugin name, so Claude invokes them as "/schritt:<skill>".
+const PluginName = "schritt"
+
+// Invocation returns the by-name skill call string passed to the engine. Claude
+// loads the skills as a plugin, so they are namespaced ("/schritt:refine-pbi
+// /work --repo /repo"). Codex loads them as standalone user skills under
+// ~/.agents/skills, so they are not namespaced ("$implement-step /work").
 func (s Spec) Invocation() string {
-	sigil := "/"
+	var head string
 	if s.Engine == Codex {
-		sigil = "$"
+		head = "$" + s.SkillName
+	} else {
+		head = "/" + PluginName + ":" + s.SkillName
 	}
-	inv := sigil + s.SkillName + " " + s.WorkDir
+	inv := head + " " + s.WorkDir
 	for _, a := range s.SkillArgs {
 		inv += " " + a
 	}

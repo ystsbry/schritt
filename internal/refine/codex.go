@@ -8,8 +8,8 @@ import (
 
 // CodexRefiner runs the refinement via the OpenAI `codex` CLI. It invokes the
 // refine-pbi skill by name (`$refine-pbi <dir>`), so the skill must be
-// installed under ~/.agents/skills (see scripts/install-codex.sh). Codex loads
-// Agent Skills from ~/.agents/skills — the same single SKILL.md as claude.
+// installed under ~/.agents/skills (see scripts/install-codex.sh, which links
+// plugin/skills/* there). Codex loads them as standalone Agent Skills.
 type CodexRefiner struct {
 	// Bin overrides the codex binary. Empty falls back to "codex" on PATH.
 	Bin string

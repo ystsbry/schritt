@@ -1,16 +1,19 @@
 .PHONY: build test run tidy fmt vet lint clean install uninstall \
-	install-skills uninstall-skills install-codex-skills uninstall-codex-skills
+	install-plugin uninstall-plugin install-codex-skills uninstall-codex-skills \
+	install-codex-plugin uninstall-codex-plugin
 
 BIN := bin/schritt
 PKG := ./cmd/schritt
 
-# The refine-pbi skill is a single source of truth (skills/refine-pbi/SKILL.md)
-# installed into each runtime's skill directory, then invoked by name:
-#   Claude Code: ~/.claude/skills  (invoked as /refine-pbi)
-#   Codex CLI:   ~/.agents/skills  (invoked as $refine-pbi, via scripts/install-codex.sh)
-# Override the claude dir with `make install-skills CLAUDE_SKILLS_DIR=/path`.
-CLAUDE_SKILLS_DIR ?= $(HOME)/.claude/skills
-SKILLS_SRC := $(CURDIR)/skills
+# The skills are bundled as a single plugin (plugin/), installed into each
+# runtime and invoked by name:
+#   Claude Code: ~/.claude/plugins/schritt  (plugin; invoked as /schritt:refine-pbi)
+#   Codex CLI:   ~/.agents/skills           (per-skill; invoked as $refine-pbi,
+#                                            via scripts/install-codex.sh)
+# Override the claude plugins dir with `make install-plugin CLAUDE_PLUGINS_DIR=/path`.
+CLAUDE_PLUGINS_DIR ?= $(HOME)/.claude/plugins
+PLUGIN_NAME := schritt
+PLUGIN_SRC := $(CURDIR)/plugin
 
 # schritt は cgo を使わないので、クロスコンパイルや QEMU 環境での
 # gcc 絡みのトラブルを避けるため既定で無効化する。
@@ -56,35 +59,45 @@ uninstall:
 	rm -f $(INSTALL_DIR)/schritt
 	@echo "Removed schritt from $(INSTALL_DIR)"
 
-install-skills:
-	@mkdir -p $(CLAUDE_SKILLS_DIR)
-	@for src in $(SKILLS_SRC)/*/; do \
-		name=$$(basename $$src); \
-		target=$(CLAUDE_SKILLS_DIR)/$$name; \
-		if [ -L $$target ]; then \
-			rm -f $$target; \
-		elif [ -e $$target ]; then \
-			echo "skip: $$target already exists (not a symlink)"; \
-			continue; \
-		fi; \
-		ln -s $$src $$target; \
-		echo "Linked $$target -> $$src"; \
-	done
+# Symlink the whole plugin/ directory into ~/.claude/plugins/schritt so Claude
+# Code loads it as a plugin. Skills are then invoked as /schritt:<skill>.
+install-plugin:
+	@mkdir -p $(CLAUDE_PLUGINS_DIR)
+	@target=$(CLAUDE_PLUGINS_DIR)/$(PLUGIN_NAME); \
+	if [ -L $$target ]; then \
+		rm -f $$target; \
+	elif [ -e $$target ]; then \
+		echo "skip: $$target already exists (not a symlink)"; \
+		exit 0; \
+	fi; \
+	ln -s $(PLUGIN_SRC) $$target; \
+	echo "Linked $$target -> $(PLUGIN_SRC)"
 
-uninstall-skills:
-	@for src in $(SKILLS_SRC)/*/; do \
-		name=$$(basename $$src); \
-		target=$(CLAUDE_SKILLS_DIR)/$$name; \
-		if [ -L $$target ]; then \
-			rm -f $$target; \
-			echo "Removed $$target"; \
-		fi; \
-	done
+uninstall-plugin:
+	@target=$(CLAUDE_PLUGINS_DIR)/$(PLUGIN_NAME); \
+	if [ -L $$target ]; then \
+		rm -f $$target; \
+		echo "Removed $$target"; \
+	fi
 
-# Codex loads skills from ~/.agents/skills and needs a directory-level symlink
-# (it drops file-level symlinks). The script handles that; see its header.
+# --- Codex install: two options ---
+# (1) per-skill symlink into ~/.agents/skills. Reliable, live-edits, invoked as
+#     $refine-pbi. Codex drops file-level symlinks, so the script links the skill
+#     directories. This is the default/fallback.
 install-codex-skills:
 	@$(CURDIR)/scripts/install-codex.sh
 
 uninstall-codex-skills:
 	@$(CURDIR)/scripts/install-codex.sh --uninstall
+
+# (2) as a Codex plugin via a local marketplace. Codex COPIES the plugin into
+#     ~/.codex/plugins/cache/ (no symlink), so re-run after editing skills.
+#     The marketplace lives at .agents/plugins/marketplace.json and points at
+#     ./plugin. Exact `codex plugin` subcommands depend on your codex version.
+PLUGIN_MARKETPLACE := schritt
+install-codex-plugin:
+	codex plugin marketplace add $(CURDIR)
+	@echo "Added marketplace '$(PLUGIN_MARKETPLACE)'. Verify/enable with 'codex plugin', then restart codex."
+
+uninstall-codex-plugin:
+	-codex plugin marketplace remove $(PLUGIN_MARKETPLACE)
