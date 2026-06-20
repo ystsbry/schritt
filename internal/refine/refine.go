@@ -32,7 +32,6 @@ type Input struct {
 type Result struct {
 	POQuestions    string // POへの確認事項
 	Implementation []Doc  // 実装内容（実装ステップごと）
-	UnitTests      string // 単体テストのテストケース
 	Integration    []Doc  // 統合テスト（E2Eシナリオごと）
 }
 

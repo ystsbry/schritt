@@ -48,14 +48,6 @@ func (DemoRefiner) Refine(_ context.Context, in Input) (Result, error) {
 `,
 			},
 		},
-		UnitTests: `# 単体テストのテストケース
-
-| 観点 | 入力 | 期待結果 |
-| ---- | ---- | -------- |
-| 正常系 | 代表的な入力 | 期待する出力 |
-| 境界値 | 空文字 / 最大長 | エラーにならず規定の挙動 |
-| 異常系 | 不正な値 | 明示的なエラーを返す |
-`,
 		Integration: []Doc{
 			{
 				File:  "01-happy-path.md",

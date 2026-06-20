@@ -20,7 +20,6 @@ const SchemaVersion = 1
 const (
 	SectionPOQuestions      = "po_questions"
 	SectionImplementation   = "implementation"
-	SectionUnitTests        = "unit_tests"
 	SectionIntegrationTests = "integration_tests"
 )
 
@@ -29,7 +28,6 @@ const (
 var SectionTitle = map[string]string{
 	SectionPOQuestions:      "POへの確認事項",
 	SectionImplementation:   "実装内容",
-	SectionUnitTests:        "単体テストのテストケース",
 	SectionIntegrationTests: "統合テスト（E2Eシナリオ）",
 }
 
@@ -37,7 +35,6 @@ var SectionTitle = map[string]string{
 var SectionOrder = []string{
 	SectionPOQuestions,
 	SectionImplementation,
-	SectionUnitTests,
 	SectionIntegrationTests,
 }
 

@@ -93,9 +93,9 @@ func TestLoadIncludesReports(t *testing.T) {
 	if len(r.VerifyReports) != 1 || r.VerifyReports[0].Title != "検証レポート" {
 		t.Fatalf("VerifyReports = %+v", r.VerifyReports)
 	}
-	// Entries: PO(1)+impl(1)+unit(1)+integ(1)+implReport(1)+verifyReport(1) = 6.
-	if got := len(r.Entries()); got != 6 {
-		t.Fatalf("expected 6 flattened entries, got %d", got)
+	// Entries: PO(1)+impl(1)+integ(1)+implReport(1)+verifyReport(1) = 5.
+	if got := len(r.Entries()); got != 5 {
+		t.Fatalf("expected 5 flattened entries, got %d", got)
 	}
 }
 

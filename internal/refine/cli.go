@@ -34,7 +34,6 @@ var singleSectionFiles = []struct {
 	set  func(*Result, string)
 }{
 	{"po_questions.md", func(r *Result, s string) { r.POQuestions = s }},
-	{"unit_tests.md", func(r *Result, s string) { r.UnitTests = s }},
 }
 
 // run is the engine-agnostic refinement driver. The refine-pbi skill is

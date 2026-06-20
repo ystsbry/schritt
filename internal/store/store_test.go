@@ -22,7 +22,6 @@ func TestSaveAndLoadRoundTrip(t *testing.T) {
 				{File: "01-design.md", Title: "設計", Body: "# 設計\n\n方針\n"},
 				{File: "02-build.md", Title: "実装", Body: "# 実装\n\n本体\n"},
 			},
-			UnitTests: "単体ケース",
 			Integration: []refine.Doc{
 				{File: "01-happy.md", Title: "正常系", Body: "# 正常系\n\nシナリオ\n"},
 			},
@@ -42,7 +41,7 @@ func TestSaveAndLoadRoundTrip(t *testing.T) {
 		t.Fatalf("expected parent dir pbi-123, got %q", got)
 	}
 	for _, f := range []string{
-		"refinement.yml", "pbi.md", "po_questions.md", "unit_tests.md",
+		"refinement.yml", "pbi.md", "po_questions.md",
 		"implementation/01-design.md", "implementation/02-build.md",
 		"integration_tests/01-happy.md",
 	} {
@@ -50,8 +49,9 @@ func TestSaveAndLoadRoundTrip(t *testing.T) {
 			t.Fatalf("expected %s to exist: %v", f, err)
 		}
 	}
-	// implementation.md / integration_tests.md must NOT exist (now directories).
-	for _, f := range []string{"implementation.md", "integration_tests.md"} {
+	// Unit tests removed; implementation.md / integration_tests.md must NOT
+	// exist (they are directories now).
+	for _, f := range []string{"unit_tests.md", "implementation.md", "integration_tests.md"} {
 		if _, err := os.Stat(filepath.Join(dir, f)); !os.IsNotExist(err) {
 			t.Fatalf("%s should not exist; got err=%v", f, err)
 		}
@@ -67,8 +67,8 @@ func TestSaveAndLoadRoundTrip(t *testing.T) {
 	if r.PBI.Number != 123 || r.PBI.Title != "ログイン機能" {
 		t.Fatalf("unexpected PBI meta: %+v", r.PBI)
 	}
-	if len(r.Sections) != 4 {
-		t.Fatalf("expected 4 sections, got %d", len(r.Sections))
+	if len(r.Sections) != 3 {
+		t.Fatalf("expected 3 sections, got %d", len(r.Sections))
 	}
 	// Sections come back in canonical order.
 	wantIDs := model.SectionOrder
@@ -100,9 +100,9 @@ func TestSaveAndLoadRoundTrip(t *testing.T) {
 		}
 	}
 
-	// Entries flatten: PO(1) + impl(2) + unit(1) + integ(1) = 5.
-	if got := len(r.Entries()); got != 5 {
-		t.Fatalf("expected 5 flattened entries, got %d", got)
+	// Entries flatten: PO(1) + impl(2) + integ(1) = 4.
+	if got := len(r.Entries()); got != 4 {
+		t.Fatalf("expected 4 flattened entries, got %d", got)
 	}
 }
 

@@ -94,8 +94,8 @@ func TestSubmitRunsRefinementAndShowsResult(t *testing.T) {
 	if a.ref == nil || a.ref.PBI.Number != 42 {
 		t.Fatalf("expected loaded refinement for PBI #42, got %+v", a.ref)
 	}
-	if len(a.ref.Sections) != 4 {
-		t.Fatalf("expected 4 sections, got %d", len(a.ref.Sections))
+	if len(a.ref.Sections) != 3 {
+		t.Fatalf("expected 3 sections, got %d", len(a.ref.Sections))
 	}
 }
 

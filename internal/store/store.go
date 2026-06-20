@@ -6,9 +6,8 @@
 //	  refinement.yml
 //	  pbi.md                 (the input, kept for reference)
 //	  po_questions.md
-//	  implementation.md
-//	  unit_tests.md
-//	  integration_tests.md
+//	  implementation/   (one markdown file per step)
+//	  integration_tests/ (one markdown file per E2E scenario)
 package store
 
 import (
@@ -55,7 +54,6 @@ var singleSectionSpec = []struct {
 	body func(refine.Result) string
 }{
 	{model.SectionPOQuestions, "po_questions.md", func(r refine.Result) string { return r.POQuestions }},
-	{model.SectionUnitTests, "unit_tests.md", func(r refine.Result) string { return r.UnitTests }},
 }
 
 // dirSectionSpec ties each directory section's ID to its subdir and the Result

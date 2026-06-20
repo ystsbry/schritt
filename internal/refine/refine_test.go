@@ -41,9 +41,7 @@ for a in "$@"; do
   if [ -d "$a" ]; then target="$a"; fi
 done
 if [ -z "$target" ]; then echo "no work dir in args" >&2; exit 1; fi
-for f in po_questions unit_tests; do
-  printf '# %s\n\n本文\n' "$f" > "$target/$f.md"
-done
+printf '# %s\n\n本文\n' "po_questions" > "$target/po_questions.md"
 mkdir -p "$target/implementation"
 printf '# 設計\n\n本文\n' > "$target/implementation/01-design.md"
 printf '# 実装\n\n本文\n' > "$target/implementation/02-build.md"
@@ -70,13 +68,8 @@ func TestRefinersRunEndToEnd(t *testing.T) {
 		if err != nil {
 			t.Fatalf("%s Refine: %v", name, err)
 		}
-		for field, body := range map[string]string{
-			"POQuestions": res.POQuestions,
-			"UnitTests":   res.UnitTests,
-		} {
-			if strings.TrimSpace(body) == "" {
-				t.Fatalf("%s: %s is empty", name, field)
-			}
+		if strings.TrimSpace(res.POQuestions) == "" {
+			t.Fatalf("%s: POQuestions is empty", name)
 		}
 		// Implementation is read back as ordered docs from implementation/.
 		if len(res.Implementation) != 2 {
