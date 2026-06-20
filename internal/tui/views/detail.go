@@ -18,6 +18,7 @@ type Detail struct {
 	km       keys.KeyMap
 	index    int
 	viewport viewport.Model
+	width    int
 	ready    bool
 }
 
@@ -50,11 +51,18 @@ func (d *Detail) entry() (model.Entry, bool) {
 	return d.entries[d.index], true
 }
 
+// content returns the selected entry's body wrapped to the viewport width so
+// long lines (including no-space CJK text) don't get clipped on the right. The
+// viewport itself does not wrap; we must do it before SetContent.
 func (d *Detail) content() string {
-	if e, ok := d.entry(); ok {
+	e, ok := d.entry()
+	if !ok {
+		return ""
+	}
+	if d.width <= 0 {
 		return e.Body
 	}
-	return ""
+	return lipgloss.NewStyle().Width(d.width).Render(e.Body)
 }
 
 func (d *Detail) title() string {
@@ -72,14 +80,16 @@ func (d *Detail) Update(msg tea.Msg) (*Detail, tea.Cmd) {
 		if h < 1 {
 			h = 1
 		}
+		d.width = m.Width
 		if !d.ready {
 			d.viewport = viewport.New(m.Width, h)
-			d.viewport.SetContent(d.content())
 			d.ready = true
 		} else {
 			d.viewport.Width = m.Width
 			d.viewport.Height = h
 		}
+		// Re-wrap content for the (possibly new) width.
+		d.viewport.SetContent(d.content())
 		return d, nil
 	case tea.KeyMsg:
 		if key.Matches(m, d.km.Back) {

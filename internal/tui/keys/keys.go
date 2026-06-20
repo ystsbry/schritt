@@ -5,15 +5,16 @@ package keys
 import "github.com/charmbracelet/bubbles/key"
 
 type KeyMap struct {
-	Up      key.Binding
-	Down    key.Binding
-	Enter   key.Binding
-	Back    key.Binding
-	Tab     key.Binding
-	Submit  key.Binding
-	Command key.Binding
-	Help    key.Binding
-	Quit    key.Binding
+	Up       key.Binding
+	Down     key.Binding
+	Enter    key.Binding
+	Back     key.Binding
+	Tab      key.Binding
+	ShiftTab key.Binding
+	Submit   key.Binding
+	Command  key.Binding
+	Help     key.Binding
+	Quit     key.Binding
 }
 
 func DefaultKeyMap() KeyMap {
@@ -37,6 +38,10 @@ func DefaultKeyMap() KeyMap {
 		Tab: key.NewBinding(
 			key.WithKeys("tab"),
 			key.WithHelp("tab", "next field"),
+		),
+		ShiftTab: key.NewBinding(
+			key.WithKeys("shift+tab"),
+			key.WithHelp("shift+tab", "prev field"),
 		),
 		Submit: key.NewBinding(
 			key.WithKeys("ctrl+r"),

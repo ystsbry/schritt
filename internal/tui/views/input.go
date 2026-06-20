@@ -127,6 +127,9 @@ func (in *Input) Update(msg tea.Msg) (*Input, tea.Cmd) {
 		case key.Matches(m, in.km.Tab):
 			in.setFocus((in.focus + 1) % numFields)
 			return in, nil
+		case key.Matches(m, in.km.ShiftTab):
+			in.setFocus((in.focus - 1 + numFields) % numFields)
+			return in, nil
 		}
 	}
 
@@ -240,6 +243,6 @@ func (in *Input) View() string {
 		b.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("203")).Render(in.errMsg))
 		b.WriteByte('\n')
 	}
-	b.WriteString(label.Render(fmt.Sprintf("tab フィールド切替 · %s リファインメント実行 · ctrl+c 終了", in.km.Submit.Keys()[0])))
+	b.WriteString(label.Render(fmt.Sprintf("tab/shift+tab フィールド移動 · %s リファインメント実行 · ctrl+c 終了", in.km.Submit.Keys()[0])))
 	return b.String()
 }
