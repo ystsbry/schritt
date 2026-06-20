@@ -16,6 +16,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"gopkg.in/yaml.v3"
@@ -37,15 +38,20 @@ func Home() (string, error) {
 	return filepath.Join(h, ".schritt"), nil
 }
 
-// sectionSpec ties a section ID to its body file and the Result field that
-// supplies its content. The order here is the on-disk and display order.
-var sectionSpec = []struct {
+// implementationSubdir is the directory (relative to a refinement dir) that
+// holds one markdown file per implementation step. Keep it in sync with
+// refine.implementationDirName and SKILL.md.
+const implementationSubdir = "implementation"
+
+// singleSectionSpec ties each single-file section's ID to its body file and the
+// Result field that supplies its content. The implementation section is handled
+// separately because it is a directory of step files.
+var singleSectionSpec = []struct {
 	id   string
 	file string
 	body func(refine.Result) string
 }{
 	{model.SectionPOQuestions, "po_questions.md", func(r refine.Result) string { return r.POQuestions }},
-	{model.SectionImplementation, "implementation.md", func(r refine.Result) string { return r.Implementation }},
 	{model.SectionUnitTests, "unit_tests.md", func(r refine.Result) string { return r.UnitTests }},
 	{model.SectionIntegrationTests, "integration_tests.md", func(r refine.Result) string { return r.IntegrationTests }},
 }
@@ -89,17 +95,52 @@ func Save(home string, in SaveInput) (string, error) {
 		}
 	}
 
-	sections := make([]model.Section, 0, len(sectionSpec))
-	for _, spec := range sectionSpec {
+	byID := make(map[string]model.Section, len(model.SectionOrder))
+
+	// Single-file sections.
+	for _, spec := range singleSectionSpec {
 		body := spec.body(in.Result)
 		if err := os.WriteFile(filepath.Join(dir, spec.file), []byte(body), 0o644); err != nil {
 			return "", fmt.Errorf("write %s: %w", spec.file, err)
 		}
-		sections = append(sections, model.Section{
+		byID[spec.id] = model.Section{
 			ID:       spec.id,
 			Title:    model.SectionTitle[spec.id],
 			BodyFile: spec.file,
-		})
+		}
+	}
+
+	// Implementation section: one markdown file per step under implementation/.
+	implSec := model.Section{
+		ID:    model.SectionImplementation,
+		Title: model.SectionTitle[model.SectionImplementation],
+	}
+	if len(in.Result.Implementation) > 0 {
+		if err := os.MkdirAll(filepath.Join(dir, implementationSubdir), 0o755); err != nil {
+			return "", fmt.Errorf("create %s: %w", implementationSubdir, err)
+		}
+		for i, step := range in.Result.Implementation {
+			name := step.File
+			if name == "" {
+				name = fmt.Sprintf("%02d.md", i+1)
+			}
+			rel := implementationSubdir + "/" + name
+			if err := os.WriteFile(filepath.Join(dir, rel), []byte(step.Body), 0o644); err != nil {
+				return "", fmt.Errorf("write %s: %w", rel, err)
+			}
+			title := step.Title
+			if title == "" {
+				title = strings.TrimSuffix(name, filepath.Ext(name))
+			}
+			implSec.Steps = append(implSec.Steps, model.Step{Title: title, BodyFile: rel})
+		}
+	}
+	byID[model.SectionImplementation] = implSec
+
+	// Assemble sections in canonical order.
+	sections := make([]model.Section, 0, len(model.SectionOrder))
+	for _, id := range model.SectionOrder {
+		sections = append(sections, byID[id])
 	}
 
 	r := model.Refinement{
@@ -142,6 +183,22 @@ func Load(dir string) (*model.Refinement, error) {
 	r.BaseDir = abs
 	for i := range r.Sections {
 		s := &r.Sections[i]
+		// Multi-file (implementation) section: read each step body.
+		if len(s.Steps) > 0 {
+			for j := range s.Steps {
+				st := &s.Steps[j]
+				if st.BodyFile == "" {
+					return nil, fmt.Errorf("%s: sections[%d].steps[%d].body_file is required", yamlPath, i, j)
+				}
+				body, err := os.ReadFile(filepath.Join(abs, st.BodyFile))
+				if err != nil {
+					return nil, fmt.Errorf("read step body %s: %w", st.BodyFile, err)
+				}
+				st.Body = string(body)
+			}
+			continue
+		}
+		// Single-file section.
 		if s.BodyFile == "" {
 			return nil, fmt.Errorf("%s: sections[%d].body_file is required", yamlPath, i)
 		}

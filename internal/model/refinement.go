@@ -6,7 +6,10 @@
 // references the section bodies, which live next to it as markdown files.
 package model
 
-import "time"
+import (
+	"fmt"
+	"time"
+)
 
 // SchemaVersion is the refinement.yml schema version. Bump it (and the loader
 // guard) on any breaking change to the YAML shape.
@@ -50,16 +53,37 @@ type GeneratedBy struct {
 	Model string `yaml:"model,omitempty"`
 }
 
-// Section is one part of the refinement result. The body is stored in a
-// sibling markdown file referenced by BodyFile; Body itself is derived on
-// load and not persisted in the YAML.
-type Section struct {
-	ID       string `yaml:"id"`
+// Step is one ordered part of a multi-file section. The implementation plan is
+// split into steps, each stored as its own markdown file under an
+// implementation/ directory and referenced by BodyFile.
+type Step struct {
 	Title    string `yaml:"title"`
 	BodyFile string `yaml:"body_file"`
 
 	// Derived (not persisted in YAML).
 	Body string `yaml:"-"`
+}
+
+// Section is one part of the refinement result. Single-file sections (PO
+// questions, unit/integration tests) carry BodyFile. The implementation
+// section instead carries an ordered list of Steps, one markdown file each.
+// Body / Step.Body are derived on load and not persisted in the YAML.
+type Section struct {
+	ID       string `yaml:"id"`
+	Title    string `yaml:"title"`
+	BodyFile string `yaml:"body_file,omitempty"`
+	Steps    []Step `yaml:"steps,omitempty"`
+
+	// Derived (not persisted in YAML).
+	Body string `yaml:"-"`
+}
+
+// Entry is a flattened, viewable unit of a refinement: one selectable row in
+// the TUI with a title and a markdown body. Single-file sections map to one
+// entry; the implementation section expands to one entry per step.
+type Entry struct {
+	Title string
+	Body  string
 }
 
 // Refinement is the full result loaded from a refinement.yml directory.
@@ -73,4 +97,24 @@ type Refinement struct {
 
 	// Derived (not persisted in YAML).
 	BaseDir string `yaml:"-"`
+}
+
+// Entries flattens the refinement into the list of viewable rows, in section
+// order. The implementation section expands to one entry per step so each
+// implementation step is browsable on its own.
+func (r *Refinement) Entries() []Entry {
+	var es []Entry
+	for _, s := range r.Sections {
+		if len(s.Steps) > 0 {
+			for i, st := range s.Steps {
+				es = append(es, Entry{
+					Title: fmt.Sprintf("%s ▸ %d. %s", s.Title, i+1, st.Title),
+					Body:  st.Body,
+				})
+			}
+			continue
+		}
+		es = append(es, Entry{Title: s.Title, Body: s.Body})
+	}
+	return es
 }

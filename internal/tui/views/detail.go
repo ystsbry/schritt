@@ -10,10 +10,11 @@ import (
 	"github.com/ystsbry/schritt/internal/tui/keys"
 )
 
-// Detail renders one refinement section's markdown body inside a scrollable
-// viewport.
+// Detail renders one refinement entry's markdown body inside a scrollable
+// viewport. Entries are the flattened list (single-file sections plus one per
+// implementation step).
 type Detail struct {
-	ref      *model.Refinement
+	entries  []model.Entry
 	km       keys.KeyMap
 	index    int
 	viewport viewport.Model
@@ -24,12 +25,16 @@ func NewDetail(km keys.KeyMap) *Detail {
 	return &Detail{km: km}
 }
 
-// SetRefinement swaps in the refinement to read sections from.
+// SetRefinement swaps in the refinement to read entries from.
 func (d *Detail) SetRefinement(r *model.Refinement) {
-	d.ref = r
+	if r != nil {
+		d.entries = r.Entries()
+	} else {
+		d.entries = nil
+	}
 }
 
-// SetIndex selects which section to show and resets the scroll position.
+// SetIndex selects which entry to show and resets the scroll position.
 func (d *Detail) SetIndex(i int) {
 	d.index = i
 	if d.ready {
@@ -38,23 +43,23 @@ func (d *Detail) SetIndex(i int) {
 	}
 }
 
-func (d *Detail) section() (model.Section, bool) {
-	if d.ref == nil || d.index < 0 || d.index >= len(d.ref.Sections) {
-		return model.Section{}, false
+func (d *Detail) entry() (model.Entry, bool) {
+	if d.index < 0 || d.index >= len(d.entries) {
+		return model.Entry{}, false
 	}
-	return d.ref.Sections[d.index], true
+	return d.entries[d.index], true
 }
 
 func (d *Detail) content() string {
-	if s, ok := d.section(); ok {
-		return s.Body
+	if e, ok := d.entry(); ok {
+		return e.Body
 	}
 	return ""
 }
 
 func (d *Detail) title() string {
-	if s, ok := d.section(); ok {
-		return s.Title
+	if e, ok := d.entry(); ok {
+		return e.Title
 	}
 	return ""
 }

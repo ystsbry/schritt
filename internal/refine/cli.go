@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 )
 
@@ -32,15 +33,19 @@ func skillInvocation(prefix, workDir string, repoPaths []string) string {
 	return s
 }
 
-// sectionFiles maps each output filename to the Result field it populates.
-// The skill (SKILL.md) writes these files into the work dir; this list is the
-// read-back contract. Keep the filenames in sync with SKILL.md's "出力" table.
-var sectionFiles = []struct {
+// implementationDirName is the subdirectory of the work dir into which the
+// skill writes one markdown file per implementation step. Keep it in sync with
+// SKILL.md's "出力" section and store.implementationSubdir.
+const implementationDirName = "implementation"
+
+// singleSectionFiles maps each single-file section's filename to the Result
+// field it populates. The implementation section is handled separately because
+// it is a directory of step files. Keep filenames in sync with SKILL.md.
+var singleSectionFiles = []struct {
 	file string
 	set  func(*Result, string)
 }{
 	{"po_questions.md", func(r *Result, s string) { r.POQuestions = s }},
-	{"implementation.md", func(r *Result, s string) { r.Implementation = s }},
 	{"unit_tests.md", func(r *Result, s string) { r.UnitTests = s }},
 	{"integration_tests.md", func(r *Result, s string) { r.IntegrationTests = s }},
 }
@@ -133,13 +138,19 @@ func runCLI(ctx context.Context, in Input, spec cliSpec) (Result, error) {
 
 	var res Result
 	var missing []string
-	for _, sf := range sectionFiles {
+	for _, sf := range singleSectionFiles {
 		body, err := os.ReadFile(filepath.Join(work, sf.file))
 		if err != nil {
 			missing = append(missing, sf.file)
 			continue
 		}
-		sf.set(&res, strings.TrimRight(string(body), "\n")+"\n")
+		sf.set(&res, normalizeBody(string(body)))
+	}
+	steps, err := readImplementationSteps(filepath.Join(work, implementationDirName))
+	if err != nil || len(steps) == 0 {
+		missing = append(missing, implementationDirName+"/*.md")
+	} else {
+		res.Implementation = steps
 	}
 	if len(missing) > 0 {
 		// The most common cause is that the skill is not installed for this
@@ -151,4 +162,58 @@ func runCLI(ctx context.Context, in Input, spec cliSpec) (Result, error) {
 		spec.progress("リファインメント完了")
 	}
 	return res, nil
+}
+
+// readImplementationSteps reads every *.md file in dir as an ordered
+// implementation step. Files are sorted lexically, so the zero-padded numeric
+// prefixes the skill uses (01-, 02-, …) preserve the intended order. Returns
+// an empty slice (and nil error) when dir exists but has no markdown files.
+func readImplementationSteps(dir string) ([]ImplementationStep, error) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil, err
+	}
+	var names []string
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		if strings.EqualFold(filepath.Ext(e.Name()), ".md") {
+			names = append(names, e.Name())
+		}
+	}
+	sort.Strings(names)
+
+	var steps []ImplementationStep
+	for _, name := range names {
+		raw, err := os.ReadFile(filepath.Join(dir, name))
+		if err != nil {
+			return nil, err
+		}
+		body := normalizeBody(string(raw))
+		steps = append(steps, ImplementationStep{
+			File:  name,
+			Title: stepTitle(name, body),
+			Body:  body,
+		})
+	}
+	return steps, nil
+}
+
+// stepTitle derives a human-facing label for an implementation step: the text
+// of the first markdown heading if present, otherwise the filename stem.
+func stepTitle(file, body string) string {
+	for _, line := range strings.Split(body, "\n") {
+		t := strings.TrimSpace(line)
+		if strings.HasPrefix(t, "# ") {
+			return strings.TrimSpace(t[2:])
+		}
+	}
+	return strings.TrimSuffix(file, filepath.Ext(file))
+}
+
+// normalizeBody trims trailing blank lines and ensures a single trailing
+// newline, so stored markdown is consistent regardless of how the AI wrote it.
+func normalizeBody(s string) string {
+	return strings.TrimRight(s, "\n") + "\n"
 }

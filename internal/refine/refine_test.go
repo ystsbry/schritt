@@ -100,9 +100,12 @@ for a in "$@"; do
   if [ -d "$a" ]; then target="$a"; fi
 done
 if [ -z "$target" ]; then echo "no work dir in args" >&2; exit 1; fi
-for f in po_questions implementation unit_tests integration_tests; do
+for f in po_questions unit_tests integration_tests; do
   printf '# %s\n\n本文\n' "$f" > "$target/$f.md"
 done
+mkdir -p "$target/implementation"
+printf '# 設計\n\n本文\n' > "$target/implementation/01-design.md"
+printf '# 実装\n\n本文\n' > "$target/implementation/02-build.md"
 `
 	if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
 		t.Fatalf("write fake CLI: %v", err)
@@ -125,13 +128,22 @@ func TestRefinersRunEndToEnd(t *testing.T) {
 		}
 		for field, body := range map[string]string{
 			"POQuestions":      res.POQuestions,
-			"Implementation":   res.Implementation,
 			"UnitTests":        res.UnitTests,
 			"IntegrationTests": res.IntegrationTests,
 		} {
 			if strings.TrimSpace(body) == "" {
 				t.Fatalf("%s: %s is empty", name, field)
 			}
+		}
+		// Implementation is read back as ordered steps from implementation/.
+		if len(res.Implementation) != 2 {
+			t.Fatalf("%s: expected 2 implementation steps, got %d", name, len(res.Implementation))
+		}
+		if res.Implementation[0].File != "01-design.md" || res.Implementation[1].File != "02-build.md" {
+			t.Fatalf("%s: implementation steps out of order: %+v", name, res.Implementation)
+		}
+		if res.Implementation[0].Title != "設計" {
+			t.Fatalf("%s: step title should come from heading, got %q", name, res.Implementation[0].Title)
 		}
 	}
 }

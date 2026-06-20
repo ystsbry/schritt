@@ -17,8 +17,11 @@ func TestSaveAndLoadRoundTrip(t *testing.T) {
 		PBITitle:  "ログイン機能",
 		PBIBody:   "# PBI\n\n本文",
 		Result: refine.Result{
-			POQuestions:      "確認事項",
-			Implementation:   "実装方針",
+			POQuestions: "確認事項",
+			Implementation: []refine.ImplementationStep{
+				{File: "01-design.md", Title: "設計", Body: "# 設計\n\n方針\n"},
+				{File: "02-build.md", Title: "実装", Body: "# 実装\n\n本体\n"},
+			},
 			UnitTests:        "単体ケース",
 			IntegrationTests: "統合ケース",
 		},
@@ -31,14 +34,22 @@ func TestSaveAndLoadRoundTrip(t *testing.T) {
 		t.Fatalf("Save: %v", err)
 	}
 
-	// Directory layout: ~/pbi-123/{ts}/refinement.yml + bodies.
+	// Directory layout: ~/pbi-123/{ts}/refinement.yml + single-file bodies +
+	// the implementation/ directory of step files.
 	if got := filepath.Base(filepath.Dir(dir)); got != "pbi-123" {
 		t.Fatalf("expected parent dir pbi-123, got %q", got)
 	}
-	for _, f := range []string{"refinement.yml", "pbi.md", "po_questions.md", "implementation.md", "unit_tests.md", "integration_tests.md"} {
+	for _, f := range []string{
+		"refinement.yml", "pbi.md", "po_questions.md", "unit_tests.md", "integration_tests.md",
+		"implementation/01-design.md", "implementation/02-build.md",
+	} {
 		if _, err := os.Stat(filepath.Join(dir, f)); err != nil {
 			t.Fatalf("expected %s to exist: %v", f, err)
 		}
+	}
+	// implementation.md must NOT exist (it is a directory now).
+	if _, err := os.Stat(filepath.Join(dir, "implementation.md")); !os.IsNotExist(err) {
+		t.Fatalf("implementation.md should not exist; got err=%v", err)
 	}
 
 	r, err := Load(dir)
@@ -54,18 +65,32 @@ func TestSaveAndLoadRoundTrip(t *testing.T) {
 	if len(r.Sections) != 4 {
 		t.Fatalf("expected 4 sections, got %d", len(r.Sections))
 	}
-	// Sections come back in canonical order with bodies populated.
+	// Sections come back in canonical order.
 	wantIDs := model.SectionOrder
 	for i, s := range r.Sections {
 		if s.ID != wantIDs[i] {
 			t.Fatalf("section[%d] id = %q, want %q", i, s.ID, wantIDs[i])
 		}
-		if s.Body == "" {
-			t.Fatalf("section[%d] (%s) has empty body", i, s.ID)
-		}
 		if s.Title != model.SectionTitle[s.ID] {
 			t.Fatalf("section[%d] title = %q, want %q", i, s.Title, model.SectionTitle[s.ID])
 		}
+		if s.ID == model.SectionImplementation {
+			if len(s.Steps) != 2 {
+				t.Fatalf("implementation should have 2 steps, got %d", len(s.Steps))
+			}
+			for j, st := range s.Steps {
+				if st.Title == "" || st.Body == "" || st.BodyFile == "" {
+					t.Fatalf("implementation step[%d] incomplete: %+v", j, st)
+				}
+			}
+		} else if s.Body == "" {
+			t.Fatalf("section[%d] (%s) has empty body", i, s.ID)
+		}
+	}
+
+	// Entries flatten: PO(1) + impl steps(2) + unit(1) + integ(1) = 5.
+	if got := len(r.Entries()); got != 5 {
+		t.Fatalf("expected 5 flattened entries, got %d", got)
 	}
 }
 

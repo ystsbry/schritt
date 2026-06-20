@@ -13,13 +13,15 @@ import (
 )
 
 // List is the refinement result overview: a header identifying the PBI and a
-// selectable list of the refinement sections.
+// selectable list of the refinement entries (single-file sections plus one row
+// per implementation step).
 type List struct {
-	ref    *model.Refinement
-	km     keys.KeyMap
-	cursor int
-	width  int
-	height int
+	ref     *model.Refinement
+	entries []model.Entry
+	km      keys.KeyMap
+	cursor  int
+	width   int
+	height  int
 }
 
 func NewList(km keys.KeyMap) *List {
@@ -29,18 +31,16 @@ func NewList(km keys.KeyMap) *List {
 // SetRefinement swaps in the refinement to display and resets the cursor.
 func (l *List) SetRefinement(r *model.Refinement) {
 	l.ref = r
+	if r != nil {
+		l.entries = r.Entries()
+	} else {
+		l.entries = nil
+	}
 	l.cursor = 0
 }
 
-// Cursor returns the index of the selected section.
+// Cursor returns the index of the selected entry.
 func (l *List) Cursor() int { return l.cursor }
-
-func (l *List) sections() []model.Section {
-	if l.ref == nil {
-		return nil
-	}
-	return l.ref.Sections
-}
 
 func (l *List) Update(msg tea.Msg) (*List, tea.Cmd) {
 	switch m := msg.(type) {
@@ -49,10 +49,9 @@ func (l *List) Update(msg tea.Msg) (*List, tea.Cmd) {
 		l.height = m.Height
 		return l, nil
 	case tea.KeyMsg:
-		secs := l.sections()
 		switch {
 		case key.Matches(m, l.km.Down):
-			if l.cursor < len(secs)-1 {
+			if l.cursor < len(l.entries)-1 {
 				l.cursor++
 			}
 		case key.Matches(m, l.km.Up):
@@ -60,7 +59,7 @@ func (l *List) Update(msg tea.Msg) (*List, tea.Cmd) {
 				l.cursor--
 			}
 		case key.Matches(m, l.km.Enter):
-			if len(secs) > 0 {
+			if len(l.entries) > 0 {
 				return l, goToDetail(l.cursor)
 			}
 		}
@@ -85,13 +84,12 @@ func (l *List) View() string {
 	b.WriteString(title)
 	b.WriteString("\n\n")
 
-	secs := l.sections()
-	if len(secs) == 0 {
+	if len(l.entries) == 0 {
 		b.WriteString(faint.Render("(セクションがありません)"))
 	}
-	for i, s := range secs {
+	for i, e := range l.entries {
 		cursor := "  "
-		line := s.Title
+		line := e.Title
 		if i == l.cursor {
 			cursor = "> "
 			line = selected.Render(line)

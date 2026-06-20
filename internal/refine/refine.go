@@ -26,13 +26,26 @@ type Input struct {
 	RepoPaths []string
 }
 
-// Result holds the four refinement sections as markdown. Each field is the
-// body that will be written to its corresponding section file.
+// Result holds the refinement sections as markdown. The single-file sections
+// are plain strings; the implementation plan is an ordered list of steps, each
+// its own markdown file.
 type Result struct {
-	POQuestions      string // POへの確認事項
-	Implementation   string // 実装内容
-	UnitTests        string // 単体テストのテストケース
-	IntegrationTests string // 統合テストのテストケース
+	POQuestions      string               // POへの確認事項
+	Implementation   []ImplementationStep // 実装内容（ステップごと）
+	UnitTests        string               // 単体テストのテストケース
+	IntegrationTests string               // 統合テストのテストケース
+}
+
+// ImplementationStep is one step of the implementation plan.
+type ImplementationStep struct {
+	// File is the step's source filename within the implementation directory
+	// (e.g. "01-setup.md"). Determines order via lexical sort.
+	File string
+	// Title is a human-facing label, derived from the first markdown heading
+	// (falling back to the filename stem).
+	Title string
+	// Body is the step's markdown content.
+	Body string
 }
 
 // Refiner turns a PBI into refinement sections.
