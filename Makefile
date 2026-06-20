@@ -7,11 +7,14 @@ PKG := ./cmd/schritt
 
 # The skills are bundled as a single plugin (plugin/), installed into each
 # runtime and invoked by name:
-#   Claude Code: ~/.claude/plugins/schritt  (plugin; invoked as /schritt:refine-pbi)
-#   Codex CLI:   ~/.agents/skills           (per-skill; invoked as $refine-pbi,
-#                                            via scripts/install-codex.sh)
-# Override the claude plugins dir with `make install-plugin CLAUDE_PLUGINS_DIR=/path`.
-CLAUDE_PLUGINS_DIR ?= $(HOME)/.claude/plugins
+#   Claude Code: ~/.claude/skills/schritt  (skills-dir plugin; auto-loads as
+#                                           schritt@skills-dir; /schritt:refine-pbi)
+#   Codex CLI:   ~/.agents/skills          (per-skill; invoked as $refine-pbi,
+#                                           via scripts/install-codex.sh)
+# A symlink under ~/.claude/plugins/ is NOT auto-loaded (it needs marketplace
+# registration); ~/.claude/skills/<name>/ with a plugin.json auto-loads instead.
+# Override the dir with `make install-plugin CLAUDE_SKILLS_DIR=/path`.
+CLAUDE_SKILLS_DIR ?= $(HOME)/.claude/skills
 PLUGIN_NAME := schritt
 PLUGIN_SRC := $(CURDIR)/plugin
 
@@ -59,11 +62,13 @@ uninstall:
 	rm -f $(INSTALL_DIR)/schritt
 	@echo "Removed schritt from $(INSTALL_DIR)"
 
-# Symlink the whole plugin/ directory into ~/.claude/plugins/schritt so Claude
-# Code loads it as a plugin. Skills are then invoked as /schritt:<skill>.
+# Symlink the whole plugin/ directory into ~/.claude/skills/schritt so Claude
+# Code auto-loads it as the schritt@skills-dir plugin. Skills are then invoked
+# as /schritt:<skill>. Restart Claude Code to pick it up; verify with
+# `claude plugin list`.
 install-plugin:
-	@mkdir -p $(CLAUDE_PLUGINS_DIR)
-	@target=$(CLAUDE_PLUGINS_DIR)/$(PLUGIN_NAME); \
+	@mkdir -p $(CLAUDE_SKILLS_DIR)
+	@target=$(CLAUDE_SKILLS_DIR)/$(PLUGIN_NAME); \
 	if [ -L $$target ]; then \
 		rm -f $$target; \
 	elif [ -e $$target ]; then \
@@ -71,10 +76,11 @@ install-plugin:
 		exit 0; \
 	fi; \
 	ln -s $(PLUGIN_SRC) $$target; \
-	echo "Linked $$target -> $(PLUGIN_SRC)"
+	echo "Linked $$target -> $(PLUGIN_SRC)"; \
+	echo "Restart Claude Code, then verify with: claude plugin list"
 
 uninstall-plugin:
-	@target=$(CLAUDE_PLUGINS_DIR)/$(PLUGIN_NAME); \
+	@target=$(CLAUDE_SKILLS_DIR)/$(PLUGIN_NAME); \
 	if [ -L $$target ]; then \
 		rm -f $$target; \
 		echo "Removed $$target"; \
