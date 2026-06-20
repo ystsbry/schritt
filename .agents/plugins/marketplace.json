@@ -4,7 +4,7 @@
   "plugins": [
     {
       "name": "schritt",
-      "description": "refine-pbi / implement-step / verify-e2e を束ねた schritt プラグイン。",
+      "description": "refine-pbi / implement-step / implement-plan / verify-e2e を束ねた schritt プラグイン。",
       "source": { "source": "local", "path": "./plugin" }
     }
   ]
