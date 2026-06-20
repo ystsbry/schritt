@@ -71,6 +71,39 @@ func TestArgsOmitModelWhenEmpty(t *testing.T) {
 	}
 }
 
+func TestClaudeArgsInjectMCPAndAllowedTools(t *testing.T) {
+	s := Spec{
+		Engine: Claude, SkillName: "verify-e2e", WorkDir: "/work",
+		MCPServers:   []MCPServer{{Name: "chrome-devtools", Command: "npx", Args: []string{"-y", "chrome-devtools-mcp@latest"}}},
+		AllowedTools: []string{"mcp__chrome-devtools"},
+	}
+	joined := strings.Join(s.Args(), " ")
+	if !strings.Contains(joined, "--mcp-config") {
+		t.Fatalf("claude Args should include --mcp-config: %s", joined)
+	}
+	if !strings.Contains(joined, `"chrome-devtools"`) || !strings.Contains(joined, "chrome-devtools-mcp@latest") {
+		t.Fatalf("mcp-config JSON missing server: %s", joined)
+	}
+	if !strings.Contains(joined, "--allowedTools mcp__chrome-devtools") {
+		t.Fatalf("claude Args should allow the MCP tools: %s", joined)
+	}
+}
+
+func TestCodexArgsInjectNetworkAndMCP(t *testing.T) {
+	s := Spec{
+		Engine: Codex, SkillName: "verify-e2e", WorkDir: "/work",
+		NetworkAccess: true,
+		MCPServers:    []MCPServer{{Name: "chrome-devtools", Command: "npx", Args: []string{"-y", "chrome-devtools-mcp@latest"}}},
+	}
+	joined := strings.Join(s.Args(), " ")
+	if !strings.Contains(joined, "sandbox_workspace_write.network_access=true") {
+		t.Fatalf("codex Args should open network egress: %s", joined)
+	}
+	if !strings.Contains(joined, "mcp_servers.chrome-devtools.command=") {
+		t.Fatalf("codex Args should register the MCP server: %s", joined)
+	}
+}
+
 func TestRunRejectsUnknownEngine(t *testing.T) {
 	if err := Run(context.Background(), Spec{Engine: "bogus", SkillName: "x", WorkDir: "/w"}); err == nil {
 		t.Fatalf("expected error for unknown engine")

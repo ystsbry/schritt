@@ -25,8 +25,9 @@ func TestRefineRejectsBadRepoPath(t *testing.T) {
 
 // fakeCLI writes a small executable that mimics an agent running the skill: it
 // scans its args for an existing directory (the work dir, passed via
-// --add-dir / --cd) and writes the four section files into it. This exercises
-// the full runCLI read-back path for both engines without a real CLI/skill.
+// --add-dir / --cd) and writes the single-file sections plus the
+// implementation/ and integration_tests/ directories into it. This exercises
+// the full read-back path for both engines without a real CLI/skill.
 func fakeCLI(t *testing.T) string {
 	t.Helper()
 	if runtime.GOOS == "windows" {
@@ -40,12 +41,15 @@ for a in "$@"; do
   if [ -d "$a" ]; then target="$a"; fi
 done
 if [ -z "$target" ]; then echo "no work dir in args" >&2; exit 1; fi
-for f in po_questions unit_tests integration_tests; do
+for f in po_questions unit_tests; do
   printf '# %s\n\n本文\n' "$f" > "$target/$f.md"
 done
 mkdir -p "$target/implementation"
 printf '# 設計\n\n本文\n' > "$target/implementation/01-design.md"
 printf '# 実装\n\n本文\n' > "$target/implementation/02-build.md"
+mkdir -p "$target/integration_tests"
+printf '# 正常系\n\n本文\n' > "$target/integration_tests/01-happy.md"
+printf '# 異常系\n\n本文\n' > "$target/integration_tests/02-error.md"
 `
 	if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
 		t.Fatalf("write fake CLI: %v", err)
@@ -67,15 +71,14 @@ func TestRefinersRunEndToEnd(t *testing.T) {
 			t.Fatalf("%s Refine: %v", name, err)
 		}
 		for field, body := range map[string]string{
-			"POQuestions":      res.POQuestions,
-			"UnitTests":        res.UnitTests,
-			"IntegrationTests": res.IntegrationTests,
+			"POQuestions": res.POQuestions,
+			"UnitTests":   res.UnitTests,
 		} {
 			if strings.TrimSpace(body) == "" {
 				t.Fatalf("%s: %s is empty", name, field)
 			}
 		}
-		// Implementation is read back as ordered steps from implementation/.
+		// Implementation is read back as ordered docs from implementation/.
 		if len(res.Implementation) != 2 {
 			t.Fatalf("%s: expected 2 implementation steps, got %d", name, len(res.Implementation))
 		}
@@ -84,6 +87,13 @@ func TestRefinersRunEndToEnd(t *testing.T) {
 		}
 		if res.Implementation[0].Title != "設計" {
 			t.Fatalf("%s: step title should come from heading, got %q", name, res.Implementation[0].Title)
+		}
+		// Integration (E2E) scenarios are read back the same way.
+		if len(res.Integration) != 2 {
+			t.Fatalf("%s: expected 2 integration scenarios, got %d", name, len(res.Integration))
+		}
+		if res.Integration[0].Title != "正常系" {
+			t.Fatalf("%s: scenario title should come from heading, got %q", name, res.Integration[0].Title)
 		}
 	}
 }

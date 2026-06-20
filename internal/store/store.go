@@ -38,14 +38,16 @@ func Home() (string, error) {
 	return filepath.Join(h, ".schritt"), nil
 }
 
-// implementationSubdir is the directory (relative to a refinement dir) that
-// holds one markdown file per implementation step. Keep it in sync with
-// refine.implementationDirName and SKILL.md.
-const implementationSubdir = "implementation"
+// Directory sections hold one markdown file per step/scenario. Keep in sync
+// with the refine package and SKILL.md.
+const (
+	implementationSubdir = "implementation"
+	integrationSubdir    = "integration_tests"
+)
 
 // singleSectionSpec ties each single-file section's ID to its body file and the
-// Result field that supplies its content. The implementation section is handled
-// separately because it is a directory of step files.
+// Result field that supplies its content. The implementation and integration
+// sections are handled separately because they are directories of files.
 var singleSectionSpec = []struct {
 	id   string
 	file string
@@ -53,7 +55,17 @@ var singleSectionSpec = []struct {
 }{
 	{model.SectionPOQuestions, "po_questions.md", func(r refine.Result) string { return r.POQuestions }},
 	{model.SectionUnitTests, "unit_tests.md", func(r refine.Result) string { return r.UnitTests }},
-	{model.SectionIntegrationTests, "integration_tests.md", func(r refine.Result) string { return r.IntegrationTests }},
+}
+
+// dirSectionSpec ties each directory section's ID to its subdir and the Result
+// docs that supply its files.
+var dirSectionSpec = []struct {
+	id     string
+	subdir string
+	docs   func(refine.Result) []refine.Doc
+}{
+	{model.SectionImplementation, implementationSubdir, func(r refine.Result) []refine.Doc { return r.Implementation }},
+	{model.SectionIntegrationTests, integrationSubdir, func(r refine.Result) []refine.Doc { return r.Integration }},
 }
 
 // SaveInput carries everything Save needs to write a refinement.
@@ -110,32 +122,32 @@ func Save(home string, in SaveInput) (string, error) {
 		}
 	}
 
-	// Implementation section: one markdown file per step under implementation/.
-	implSec := model.Section{
-		ID:    model.SectionImplementation,
-		Title: model.SectionTitle[model.SectionImplementation],
-	}
-	if len(in.Result.Implementation) > 0 {
-		if err := os.MkdirAll(filepath.Join(dir, implementationSubdir), 0o755); err != nil {
-			return "", fmt.Errorf("create %s: %w", implementationSubdir, err)
+	// Directory sections: one markdown file per step/scenario under a subdir.
+	for _, spec := range dirSectionSpec {
+		sec := model.Section{ID: spec.id, Title: model.SectionTitle[spec.id]}
+		docs := spec.docs(in.Result)
+		if len(docs) > 0 {
+			if err := os.MkdirAll(filepath.Join(dir, spec.subdir), 0o755); err != nil {
+				return "", fmt.Errorf("create %s: %w", spec.subdir, err)
+			}
+			for i, doc := range docs {
+				name := doc.File
+				if name == "" {
+					name = fmt.Sprintf("%02d.md", i+1)
+				}
+				rel := spec.subdir + "/" + name
+				if err := os.WriteFile(filepath.Join(dir, rel), []byte(doc.Body), 0o644); err != nil {
+					return "", fmt.Errorf("write %s: %w", rel, err)
+				}
+				title := doc.Title
+				if title == "" {
+					title = strings.TrimSuffix(name, filepath.Ext(name))
+				}
+				sec.Steps = append(sec.Steps, model.Step{Title: title, BodyFile: rel})
+			}
 		}
-		for i, step := range in.Result.Implementation {
-			name := step.File
-			if name == "" {
-				name = fmt.Sprintf("%02d.md", i+1)
-			}
-			rel := implementationSubdir + "/" + name
-			if err := os.WriteFile(filepath.Join(dir, rel), []byte(step.Body), 0o644); err != nil {
-				return "", fmt.Errorf("write %s: %w", rel, err)
-			}
-			title := step.Title
-			if title == "" {
-				title = strings.TrimSuffix(name, filepath.Ext(name))
-			}
-			implSec.Steps = append(implSec.Steps, model.Step{Title: title, BodyFile: rel})
-		}
+		byID[spec.id] = sec
 	}
-	byID[model.SectionImplementation] = implSec
 
 	// Assemble sections in canonical order.
 	sections := make([]model.Section, 0, len(model.SectionOrder))

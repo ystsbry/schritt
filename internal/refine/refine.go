@@ -26,25 +26,26 @@ type Input struct {
 	RepoPaths []string
 }
 
-// Result holds the refinement sections as markdown. The single-file sections
-// are plain strings; the implementation plan is an ordered list of steps, each
-// its own markdown file.
+// Result holds the refinement sections as markdown. Single-file sections are
+// plain strings; the implementation plan and the integration (E2E) scenarios
+// are each an ordered list of documents, one markdown file per step/scenario.
 type Result struct {
-	POQuestions      string               // POへの確認事項
-	Implementation   []ImplementationStep // 実装内容（ステップごと）
-	UnitTests        string               // 単体テストのテストケース
-	IntegrationTests string               // 統合テストのテストケース
+	POQuestions    string // POへの確認事項
+	Implementation []Doc  // 実装内容（実装ステップごと）
+	UnitTests      string // 単体テストのテストケース
+	Integration    []Doc  // 統合テスト（E2Eシナリオごと）
 }
 
-// ImplementationStep is one step of the implementation plan.
-type ImplementationStep struct {
-	// File is the step's source filename within the implementation directory
-	// (e.g. "01-setup.md"). Determines order via lexical sort.
+// Doc is one ordered markdown file within a multi-file section — an
+// implementation step or an integration/E2E scenario.
+type Doc struct {
+	// File is the source filename within the section directory (e.g.
+	// "01-setup.md"). Determines order via lexical sort.
 	File string
 	// Title is a human-facing label, derived from the first markdown heading
 	// (falling back to the filename stem).
 	Title string
-	// Body is the step's markdown content.
+	// Body is the document's markdown content.
 	Body string
 }
 

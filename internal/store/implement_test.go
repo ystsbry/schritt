@@ -16,7 +16,7 @@ func TestLatestRefinementDir(t *testing.T) {
 			PBINumber: pbi,
 			PBIBody:   "# PBI",
 			Result: refine.Result{
-				Implementation: []refine.ImplementationStep{{File: "01.md", Title: "s", Body: "# s\n"}},
+				Implementation: []refine.Doc{{File: "01.md", Title: "s", Body: "# s\n"}},
 			},
 			Now: now,
 		})

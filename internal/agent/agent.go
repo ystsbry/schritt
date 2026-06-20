@@ -11,6 +11,7 @@ package agent
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -49,11 +50,31 @@ type Spec struct {
 	// SkillArgs are appended to the invocation after WorkDir, verbatim, e.g.
 	// ["--repo", "/path"]. The caller composes them.
 	SkillArgs []string
+	// MCPServers are MCP servers to make available to the agent — e.g. a
+	// browser-over-CDP server for the verify stage. Empty for stages that
+	// don't need tools beyond the built-ins (refine, implement).
+	MCPServers []MCPServer
+	// AllowedTools auto-approves the listed tool patterns in non-interactive
+	// mode (Claude --allowedTools), e.g. ["mcp__chrome-devtools"]. Needed so
+	// MCP tool calls aren't blocked when there is no TTY to prompt.
+	AllowedTools []string
+	// NetworkAccess opens outbound network egress for the run. Only meaningful
+	// for Codex, whose workspace-write sandbox blocks egress by default;
+	// browser verification needs it to reach the app URL.
+	NetworkAccess bool
 	// Stdout, if set, receives the CLI's stdout (the agent's prose) live. Nil
 	// discards it. Stderr, if set, receives stderr live; nil captures it and
 	// includes it in the returned error.
 	Stdout io.Writer
 	Stderr io.Writer
+}
+
+// MCPServer describes a stdio MCP server to expose to the agent. The agent's
+// tools from it are named mcp__<Name>__<tool>.
+type MCPServer struct {
+	Name    string   // logical name, e.g. "chrome-devtools"
+	Command string   // executable, e.g. "npx"
+	Args    []string // e.g. ["-y", "chrome-devtools-mcp@latest"]
 }
 
 // DefaultBin returns the default executable name for an engine.
@@ -106,6 +127,18 @@ func (s Spec) Args() []string {
 		for _, d := range s.ExtraDirs {
 			args = append(args, "--add-dir", d)
 		}
+		// Per-invocation config overrides (-c). network_access opens egress for
+		// browser verification; mcp_servers registers any MCP servers.
+		if s.NetworkAccess {
+			args = append(args, "-c", "sandbox_workspace_write.network_access=true")
+		}
+		for _, m := range s.MCPServers {
+			args = append(args, "-c", fmt.Sprintf("mcp_servers.%s.command=%q", m.Name, m.Command))
+			if len(m.Args) > 0 {
+				js, _ := json.Marshal(m.Args)
+				args = append(args, "-c", fmt.Sprintf("mcp_servers.%s.args=%s", m.Name, string(js)))
+			}
+		}
 		if s.Model != "" {
 			args = append(args, "--model", s.Model)
 		}
@@ -121,11 +154,32 @@ func (s Spec) Args() []string {
 		}
 		args = append(args, "--add-dir", s.WorkDir)
 		args = append(args, s.ExtraDirs...)
-		return append(args,
-			"--permission-mode", "acceptEdits",
-			"--print", s.Invocation(),
-		)
+		args = append(args, "--permission-mode", "acceptEdits")
+		if len(s.MCPServers) > 0 {
+			args = append(args, "--mcp-config", claudeMCPConfig(s.MCPServers))
+		}
+		if len(s.AllowedTools) > 0 {
+			args = append(args, "--allowedTools", strings.Join(s.AllowedTools, ","))
+		}
+		return append(args, "--print", s.Invocation())
 	}
+}
+
+// claudeMCPConfig renders the MCP servers as the JSON Claude Code's
+// --mcp-config accepts inline.
+func claudeMCPConfig(servers []MCPServer) string {
+	type srv struct {
+		Command string   `json:"command"`
+		Args    []string `json:"args,omitempty"`
+	}
+	m := map[string]srv{}
+	for _, s := range servers {
+		m[s.Name] = srv{Command: s.Command, Args: s.Args}
+	}
+	b, _ := json.Marshal(struct {
+		MCPServers map[string]srv `json:"mcpServers"`
+	}{MCPServers: m})
+	return string(b)
 }
 
 // Run launches the skill invocation and waits for it to finish. It returns

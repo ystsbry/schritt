@@ -30,7 +30,7 @@ var SectionTitle = map[string]string{
 	SectionPOQuestions:      "POへの確認事項",
 	SectionImplementation:   "実装内容",
 	SectionUnitTests:        "単体テストのテストケース",
-	SectionIntegrationTests: "統合テストのテストケース",
+	SectionIntegrationTests: "統合テスト（E2Eシナリオ）",
 }
 
 // SectionOrder is the canonical display order of the sections.

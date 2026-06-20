@@ -18,21 +18,23 @@ import (
 // exactly as revu drives one review-pr skill from claude and codex.
 const skillName = "refine-pbi"
 
-// implementationDirName is the subdirectory of the work dir into which the
-// skill writes one markdown file per implementation step. Keep it in sync with
-// SKILL.md's "出力" section and store.implementationSubdir.
-const implementationDirName = "implementation"
+// Directory sections: the skill writes one markdown file per step/scenario into
+// these subdirectories of the work dir. Keep in sync with SKILL.md and store.
+const (
+	implementationDirName = "implementation"
+	integrationDirName    = "integration_tests"
+)
 
 // singleSectionFiles maps each single-file section's filename to the Result
-// field it populates. The implementation section is handled separately because
-// it is a directory of step files. Keep filenames in sync with SKILL.md.
+// field it populates. The implementation and integration sections are handled
+// separately because they are directories of files. Keep filenames in sync
+// with SKILL.md.
 var singleSectionFiles = []struct {
 	file string
 	set  func(*Result, string)
 }{
 	{"po_questions.md", func(r *Result, s string) { r.POQuestions = s }},
 	{"unit_tests.md", func(r *Result, s string) { r.UnitTests = s }},
-	{"integration_tests.md", func(r *Result, s string) { r.IntegrationTests = s }},
 }
 
 // run is the engine-agnostic refinement driver. The refine-pbi skill is
@@ -111,11 +113,15 @@ func run(ctx context.Context, in Input, engine, bin, model string, progress func
 		}
 		sf.set(&res, normalizeBody(string(body)))
 	}
-	steps, err := readImplementationSteps(filepath.Join(work, implementationDirName))
-	if err != nil || len(steps) == 0 {
+	if docs, err := readDocs(filepath.Join(work, implementationDirName)); err != nil || len(docs) == 0 {
 		missing = append(missing, implementationDirName+"/*.md")
 	} else {
-		res.Implementation = steps
+		res.Implementation = docs
+	}
+	if docs, err := readDocs(filepath.Join(work, integrationDirName)); err != nil || len(docs) == 0 {
+		missing = append(missing, integrationDirName+"/*.md")
+	} else {
+		res.Integration = docs
 	}
 	if len(missing) > 0 {
 		// The most common cause is that the skill is not installed for this
@@ -148,11 +154,12 @@ func installHint(engine string) string {
 これは skills/* を ~/.claude/skills/ にシンボリックリンクします。`
 }
 
-// readImplementationSteps reads every *.md file in dir as an ordered
-// implementation step. Files are sorted lexically, so the zero-padded numeric
-// prefixes the skill uses (01-, 02-, …) preserve the intended order. Returns
-// an empty slice (and nil error) when dir exists but has no markdown files.
-func readImplementationSteps(dir string) ([]ImplementationStep, error) {
+// readDocs reads every *.md file in dir as an ordered Doc. Files are sorted
+// lexically, so the zero-padded numeric prefixes the skill uses (01-, 02-, …)
+// preserve the intended order. Returns an empty slice (and nil error) when dir
+// exists but has no markdown files. Used for both the implementation and the
+// integration (E2E) scenario sections.
+func readDocs(dir string) ([]Doc, error) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return nil, err
@@ -168,25 +175,25 @@ func readImplementationSteps(dir string) ([]ImplementationStep, error) {
 	}
 	sort.Strings(names)
 
-	var steps []ImplementationStep
+	var docs []Doc
 	for _, name := range names {
 		raw, err := os.ReadFile(filepath.Join(dir, name))
 		if err != nil {
 			return nil, err
 		}
 		body := normalizeBody(string(raw))
-		steps = append(steps, ImplementationStep{
+		docs = append(docs, Doc{
 			File:  name,
-			Title: stepTitle(name, body),
+			Title: docTitle(name, body),
 			Body:  body,
 		})
 	}
-	return steps, nil
+	return docs, nil
 }
 
-// stepTitle derives a human-facing label for an implementation step: the text
-// of the first markdown heading if present, otherwise the filename stem.
-func stepTitle(file, body string) string {
+// docTitle derives a human-facing label for a Doc: the text of the first
+// markdown heading if present, otherwise the filename stem.
+func docTitle(file, body string) string {
 	for _, line := range strings.Split(body, "\n") {
 		t := strings.TrimSpace(line)
 		if strings.HasPrefix(t, "# ") {
