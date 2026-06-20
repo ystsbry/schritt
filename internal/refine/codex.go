@@ -1,6 +1,10 @@
 package refine
 
-import "context"
+import (
+	"context"
+
+	"github.com/ystsbry/schritt/internal/agent"
+)
 
 // CodexRefiner runs the refinement via the OpenAI `codex` CLI. It invokes the
 // refine-pbi skill by name (`$refine-pbi <dir>`), so the skill must be
@@ -9,8 +13,7 @@ import "context"
 type CodexRefiner struct {
 	// Bin overrides the codex binary. Empty falls back to "codex" on PATH.
 	Bin string
-	// Model optionally pins a model (passed as `--model`). Empty uses the
-	// codex CLI default.
+	// Model optionally pins a model. Empty uses the codex CLI default.
 	Model string
 	// Progress, if set, receives human-readable progress lines while the CLI
 	// runs (e.g. for the TUI to surface). Optional.
@@ -18,54 +21,5 @@ type CodexRefiner struct {
 }
 
 func (c *CodexRefiner) Refine(ctx context.Context, in Input) (Result, error) {
-	bin := c.Bin
-	if bin == "" {
-		bin = "codex"
-	}
-	return runCLI(ctx, in, cliSpec{
-		name:     "codex",
-		bin:      bin,
-		progress: c.Progress,
-		buildArgs: func(workDir string, repoPaths []string) []string {
-			return codexArgs(c.Model, workDir, repoPaths)
-		},
-		installHint: codexInstallHint,
-	})
+	return run(ctx, in, agent.Codex, c.Bin, c.Model, c.Progress)
 }
-
-// codexArgs builds the argv (excluding the binary) for a non-interactive
-// `codex exec` run that invokes the refine-pbi skill against workDir.
-//
-//   - `exec` is codex's non-interactive (automation) subcommand.
-//   - `--cd workDir` runs with the work dir as cwd, so `--sandbox
-//     workspace-write` permits the skill to write its files there.
-//   - `--skip-git-repo-check` allows running outside a git repository (the
-//     work dir is a bare temp dir).
-//   - `--add-dir <repo>` (repeated per repo) grants read access to each target
-//     repository, which lives outside the work dir.
-//   - the `$refine-pbi <workDir> [--repo <r>]...` positional is Codex's
-//     skill-invocation syntax — it resolves to ~/.agents/skills/refine-pbi.
-func codexArgs(model, workDir string, repoPaths []string) []string {
-	args := []string{
-		"exec",
-		"--cd", workDir,
-		"--skip-git-repo-check",
-		"--sandbox", "workspace-write",
-	}
-	for _, r := range repoPaths {
-		args = append(args, "--add-dir", r)
-	}
-	if model != "" {
-		args = append(args, "--model", model)
-	}
-	args = append(args, skillInvocation("$", workDir, repoPaths))
-	return args
-}
-
-const codexInstallHint = `refine-pbi skill が Codex CLI に見つからない可能性があります。
-リポジトリのルートで次を実行してインストールし、codex を再起動してください:
-
-  scripts/install-codex.sh
-
-これは skills/refine-pbi を ~/.agents/skills/ にシンボリックリンクします
-(codex はファイル単位の symlink を落とすため、ディレクトリごとリンクします)。`

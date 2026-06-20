@@ -1,19 +1,19 @@
 #!/usr/bin/env bash
 #
-# Install the refine-pbi skill for the OpenAI Codex CLI.
+# Install schritt's skills for the OpenAI Codex CLI.
 #
 # Codex CLI loads Agent Skills from $HOME/.agents/skills (user-scope).
 # See: https://developers.openai.com/codex/skills
 #
-# The skill is installed by symlinking the whole skill DIRECTORY, not the
+# Each skill is installed by symlinking the whole skill DIRECTORY, not the
 # SKILL.md file inside it. Codex's skill loader follows directory symlinks but
 # silently drops symlinked SKILL.md files (see openai/codex#17344 / #15756),
 # so a file-level symlink would never be discovered.
 #
-# Restart Codex after install to pick up the new skill.
+# Restart Codex after install to pick up the new skills.
 #
 # Usage:
-#   scripts/install-codex.sh            # install (creates directory symlink)
+#   scripts/install-codex.sh            # install (creates directory symlinks)
 #   scripts/install-codex.sh --copy     # install by copy (no symlink)
 #   scripts/install-codex.sh --uninstall
 #
@@ -23,10 +23,9 @@
 set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-SRC_DIR="$REPO_DIR/skills/refine-pbi"
+SKILLS_SRC="$REPO_DIR/skills"
 AGENTS_HOME="${AGENTS_HOME:-$HOME/.agents}"
 DEST_PARENT="$AGENTS_HOME/skills"
-DEST="$DEST_PARENT/refine-pbi"
 
 mode="symlink"
 case "${1:-}" in
@@ -43,46 +42,43 @@ case "${1:-}" in
     ;;
 esac
 
-if [ "$mode" = "uninstall" ]; then
-  if [ -e "$DEST" ] || [ -L "$DEST" ]; then
-    rm -rf "$DEST"
-    echo "removed: $DEST"
-  else
-    echo "not installed: $DEST"
-  fi
-  exit 0
-fi
-
-if [ ! -f "$SRC_DIR/SKILL.md" ]; then
-  echo "source SKILL.md not found: $SRC_DIR/SKILL.md" >&2
-  exit 1
-fi
-
 mkdir -p "$DEST_PARENT"
 
-if [ -e "$DEST" ] || [ -L "$DEST" ]; then
-  rm -rf "$DEST"
-fi
+for src in "$SKILLS_SRC"/*/; do
+  [ -f "$src/SKILL.md" ] || continue
+  name="$(basename "$src")"
+  dest="$DEST_PARENT/$name"
 
-case "$mode" in
-  symlink)
-    ln -s "$SRC_DIR" "$DEST"
-    echo "linked: $DEST -> $SRC_DIR"
-    ;;
-  copy)
-    cp -r "$SRC_DIR" "$DEST"
-    echo "copied: $SRC_DIR -> $DEST"
-    ;;
-esac
+  if [ "$mode" = "uninstall" ]; then
+    if [ -e "$dest" ] || [ -L "$dest" ]; then
+      rm -rf "$dest"
+      echo "removed: $dest"
+    fi
+    continue
+  fi
 
-cat <<EOF
+  if [ -e "$dest" ] || [ -L "$dest" ]; then
+    rm -rf "$dest"
+  fi
+  case "$mode" in
+    symlink)
+      ln -s "${src%/}" "$dest"
+      echo "linked: $dest -> ${src%/}"
+      ;;
+    copy)
+      cp -r "${src%/}" "$dest"
+      echo "copied: ${src%/} -> $dest"
+      ;;
+  esac
+done
 
-Installed refine-pbi as a Codex CLI skill.
-Restart Codex to pick up the new skill.
+if [ "$mode" != "uninstall" ]; then
+  cat <<EOF
 
-Use it in codex:
+Installed schritt skills as Codex CLI skills.
+Restart Codex to pick them up. schritt invokes them automatically:
 
-  \$refine-pbi <WORK_DIR>
-
-(schritt refinement --engine codex で自動的にこの形式で起動します)
+  schritt refinement --engine codex   # \$refine-pbi
+  schritt implement   --engine codex   # \$implement-step
 EOF
+fi

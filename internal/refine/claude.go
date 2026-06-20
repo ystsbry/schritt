@@ -1,6 +1,10 @@
 package refine
 
-import "context"
+import (
+	"context"
+
+	"github.com/ystsbry/schritt/internal/agent"
+)
 
 // ClaudeRefiner runs the refinement via the `claude` CLI (Claude Code). It
 // invokes the refine-pbi skill by name (`/refine-pbi <dir>`), so the skill must
@@ -8,8 +12,7 @@ import "context"
 type ClaudeRefiner struct {
 	// Bin overrides the claude binary. Empty falls back to "claude" on PATH.
 	Bin string
-	// Model optionally pins a model (passed as `--model`). Empty uses the
-	// claude CLI default.
+	// Model optionally pins a model. Empty uses the claude CLI default.
 	Model string
 	// Progress, if set, receives human-readable progress lines while the CLI
 	// runs (e.g. for the TUI to surface). Optional.
@@ -17,50 +20,5 @@ type ClaudeRefiner struct {
 }
 
 func (c *ClaudeRefiner) Refine(ctx context.Context, in Input) (Result, error) {
-	bin := c.Bin
-	if bin == "" {
-		bin = "claude"
-	}
-	return runCLI(ctx, in, cliSpec{
-		name:     "claude",
-		bin:      bin,
-		progress: c.Progress,
-		buildArgs: func(workDir string, repoPaths []string) []string {
-			return claudeArgs(c.Model, workDir, repoPaths)
-		},
-		installHint: claudeInstallHint,
-	})
+	return run(ctx, in, agent.Claude, c.Bin, c.Model, c.Progress)
 }
-
-// claudeArgs builds the argv (excluding the binary) for a non-interactive
-// `claude --print` run that invokes the refine-pbi skill against workDir.
-//
-//   - `--add-dir workDir [repoPaths...]` grants the run access to the work dir
-//     (and, when given, read access to each target repository).
-//   - `--permission-mode acceptEdits` auto-approves writes (no TTY to prompt).
-//   - `--print "/refine-pbi <workDir> [--repo <r>]..."` invokes the skill by
-//     name once.
-//
-// `--add-dir` is variadic, so it is placed before `--permission-mode` (the next
-// flag terminates the capture) to avoid swallowing the prompt; `--model` (if
-// any) goes first.
-func claudeArgs(model, workDir string, repoPaths []string) []string {
-	var args []string
-	if model != "" {
-		args = append(args, "--model", model)
-	}
-	args = append(args, "--add-dir", workDir)
-	args = append(args, repoPaths...)
-	args = append(args,
-		"--permission-mode", "acceptEdits",
-		"--print", skillInvocation("/", workDir, repoPaths),
-	)
-	return args
-}
-
-const claudeInstallHint = `refine-pbi skill が Claude Code に見つからない可能性があります。
-リポジトリのルートで次を実行してインストールしてください:
-
-  make install-skills
-
-これは skills/refine-pbi を ~/.claude/skills/ にシンボリックリンクします。`

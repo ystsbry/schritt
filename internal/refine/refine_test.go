@@ -9,69 +9,9 @@ import (
 	"testing"
 )
 
-func TestClaudeArgsInvokesSkillByName(t *testing.T) {
-	args := claudeArgs("opus", "/work", nil)
-	joined := strings.Join(args, " ")
-	for _, want := range []string{"--model opus", "--add-dir /work", "--permission-mode acceptEdits", "--print"} {
-		if !strings.Contains(joined, want) {
-			t.Fatalf("claudeArgs missing %q in %v", want, args)
-		}
-	}
-	// The skill is invoked by name as the --print prompt (trailing positional,
-	// so --add-dir can't swallow it).
-	if last := args[len(args)-1]; last != "/refine-pbi /work" {
-		t.Fatalf("expected last arg to invoke skill by name, got %q", last)
-	}
-}
-
-func TestCodexArgsInvokesSkillByName(t *testing.T) {
-	args := codexArgs("gpt-5-codex", "/work", nil)
-	if args[0] != "exec" {
-		t.Fatalf("expected codex exec subcommand first, got %v", args)
-	}
-	joined := strings.Join(args, " ")
-	for _, want := range []string{"--cd /work", "--skip-git-repo-check", "--sandbox workspace-write", "--model gpt-5-codex"} {
-		if !strings.Contains(joined, want) {
-			t.Fatalf("codexArgs missing %q in %v", want, args)
-		}
-	}
-	// Codex invokes the skill via its "$name" syntax as the trailing positional.
-	if last := args[len(args)-1]; last != "$refine-pbi /work" {
-		t.Fatalf("expected last arg to invoke skill by name, got %q", last)
-	}
-}
-
-func TestArgsIncludeMultipleReposWhenGiven(t *testing.T) {
-	repos := []string{"/repo/front", "/repo/back"}
-	// claude: every repo is granted via the variadic --add-dir and passed to
-	// the skill as a repeated --repo flag.
-	ca := claudeArgs("", "/work", repos)
-	cj := strings.Join(ca, " ")
-	if !strings.Contains(cj, "--add-dir /work /repo/front /repo/back") {
-		t.Fatalf("claudeArgs should grant all repos via --add-dir: %v", ca)
-	}
-	if last := ca[len(ca)-1]; last != "/refine-pbi /work --repo /repo/front --repo /repo/back" {
-		t.Fatalf("claude skill invocation should pass each --repo, got %q", last)
-	}
-	// codex: each repo via its own --add-dir; repeated --repo in the invocation.
-	xa := codexArgs("", "/work", repos)
-	xj := strings.Join(xa, " ")
-	if !strings.Contains(xj, "--add-dir /repo/front") || !strings.Contains(xj, "--add-dir /repo/back") {
-		t.Fatalf("codexArgs should grant each repo via --add-dir: %v", xa)
-	}
-	if last := xa[len(xa)-1]; last != "$refine-pbi /work --repo /repo/front --repo /repo/back" {
-		t.Fatalf("codex skill invocation should pass each --repo, got %q", last)
-	}
-}
-
-func TestArgsOmitModelWhenEmpty(t *testing.T) {
-	if strings.Contains(strings.Join(claudeArgs("", "/w", nil), " "), "--model") {
-		t.Fatalf("claudeArgs should omit --model when empty")
-	}
-	if strings.Contains(strings.Join(codexArgs("", "/w", nil), " "), "--model") {
-		t.Fatalf("codexArgs should omit --model when empty")
-	}
-}
+// The engine-specific argv construction is unit-tested in internal/agent. Here
+// we exercise the refine driver end-to-end (work-dir setup → invocation →
+// read-back) against a fake CLI.
 
 func TestRefineRejectsBadRepoPath(t *testing.T) {
 	bin := fakeCLI(t)
