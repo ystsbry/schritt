@@ -67,6 +67,22 @@ func (l *List) Update(msg tea.Msg) (*List, tea.Cmd) {
 	return l, nil
 }
 
+// renderRow renders one selectable list row (ending in a newline). isCursor
+// highlights the row and shows the "> " marker; indent shifts grouped items in
+// under their section header.
+func (l *List) renderRow(text string, isCursor, indent bool, selected lipgloss.Style) string {
+	marker := "  "
+	if isCursor {
+		marker = "> "
+		text = selected.Render(text)
+	}
+	lead := ""
+	if indent {
+		lead = "  "
+	}
+	return lead + marker + text + "\n"
+}
+
 func (l *List) View() string {
 	header := "schritt refinement"
 	if l.ref != nil {
@@ -78,6 +94,7 @@ func (l *List) View() string {
 	title := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("214")).Render(header)
 
 	selected := lipgloss.NewStyle().Foreground(lipgloss.Color("82")).Bold(true)
+	headerStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("39")).Bold(true)
 	faint := lipgloss.NewStyle().Faint(true)
 
 	var b strings.Builder
@@ -87,16 +104,27 @@ func (l *List) View() string {
 	if len(l.entries) == 0 {
 		b.WriteString(faint.Render("(セクションがありません)"))
 	}
+
+	// Render one header per section, with its items indented underneath.
+	// Entries are grouped by Section in Entries(); items carry a Label, while a
+	// standalone (legacy/empty) section entry has no Label and renders as a
+	// top-level row. The cursor still indexes l.entries — headers are visual
+	// only and are skipped by navigation automatically.
+	lastSection := ""
 	for i, e := range l.entries {
-		cursor := "  "
-		line := e.Title
-		if i == l.cursor {
-			cursor = "> "
-			line = selected.Render(line)
+		if e.Label == "" {
+			// Standalone section row (no per-item header).
+			lastSection = ""
+			b.WriteString(l.renderRow(e.Title, i == l.cursor, false, selected))
+			continue
 		}
-		b.WriteString(cursor)
-		b.WriteString(line)
-		b.WriteByte('\n')
+		if e.Section != lastSection {
+			b.WriteString("  ")
+			b.WriteString(headerStyle.Render(e.Section))
+			b.WriteByte('\n')
+			lastSection = e.Section
+		}
+		b.WriteString(l.renderRow(e.Label, i == l.cursor, true, selected))
 	}
 
 	b.WriteString("\n")

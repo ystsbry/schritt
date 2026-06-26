@@ -78,11 +78,20 @@ type Section struct {
 }
 
 // Entry is a flattened, viewable unit of a refinement: one selectable row in
-// the TUI with a title and a markdown body. Each section expands to one entry
-// per step; a legacy single-file section maps to one entry.
+// the TUI with a markdown body. Each section expands to one entry per step; a
+// legacy single-file section maps to one entry.
+//
+// Section is the group the entry belongs to (e.g. "実装内容"); the list view
+// renders one header per section. Label is the entry's within-section label
+// (e.g. "1. コア実装") shown as the row under that header; it is empty for a
+// standalone (non-step) section entry, which the list renders as a top-level
+// row instead. Title is the full "Section ▸ Label" heading the detail view
+// shows.
 type Entry struct {
-	Title string
-	Body  string
+	Section string
+	Label   string
+	Title   string
+	Body    string
 }
 
 // Report is a per-step/per-scenario markdown report produced by a later
@@ -111,27 +120,35 @@ type Refinement struct {
 }
 
 // Entries flattens the refinement into the list of viewable rows, in section
-// order. The implementation section expands to one entry per step so each
-// implementation step is browsable on its own.
+// order. Each section expands to one entry per step (PO question / step /
+// scenario) so every item is browsable on its own; the entries carry their
+// Section so the list view can group them under one header per section.
 func (r *Refinement) Entries() []Entry {
 	var es []Entry
+	group := func(section string, i int, title, body string) Entry {
+		label := fmt.Sprintf("%d. %s", i+1, title)
+		return Entry{
+			Section: section,
+			Label:   label,
+			Title:   section + " ▸ " + label,
+			Body:    body,
+		}
+	}
 	for _, s := range r.Sections {
 		if len(s.Steps) > 0 {
 			for i, st := range s.Steps {
-				es = append(es, Entry{
-					Title: fmt.Sprintf("%s ▸ %d. %s", s.Title, i+1, st.Title),
-					Body:  st.Body,
-				})
+				es = append(es, group(s.Title, i, st.Title, st.Body))
 			}
 			continue
 		}
-		es = append(es, Entry{Title: s.Title, Body: s.Body})
+		// Legacy / empty single-file section: a standalone row (no Label).
+		es = append(es, Entry{Section: s.Title, Title: s.Title, Body: s.Body})
 	}
 	for i, rep := range r.ImplementReports {
-		es = append(es, Entry{Title: fmt.Sprintf("実装レポート ▸ %d. %s", i+1, rep.Title), Body: rep.Body})
+		es = append(es, group("実装レポート", i, rep.Title, rep.Body))
 	}
 	for i, rep := range r.VerifyReports {
-		es = append(es, Entry{Title: fmt.Sprintf("検証レポート ▸ %d. %s", i+1, rep.Title), Body: rep.Body})
+		es = append(es, group("検証レポート", i, rep.Title, rep.Body))
 	}
 	return es
 }
