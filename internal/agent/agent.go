@@ -67,6 +67,20 @@ type Spec struct {
 	// includes it in the returned error.
 	Stdout io.Writer
 	Stderr io.Writer
+	// Progress, if set, enables live progress reporting: the Claude engine is
+	// run with `--output-format stream-json --verbose`, and each event (tool
+	// call, assistant text, …) is summarized to one human-readable line passed
+	// to Progress as it happens — so a caller (e.g. the TUI) can surface what
+	// the skill is doing instead of a bare spinner. Only wired for the Claude
+	// engine; ignored for Codex. When set, Stdout is consumed by the parser and
+	// not written to (the stream-json is machine output, not prose).
+	Progress func(string)
+}
+
+// streaming reports whether this spec should run Claude in stream-json mode and
+// relay parsed progress lines to Progress.
+func (s Spec) streaming() bool {
+	return s.Progress != nil && s.Engine == Claude
 }
 
 // MCPServer describes a stdio MCP server to expose to the agent. The agent's
@@ -170,6 +184,12 @@ func (s Spec) Args() []string {
 		if len(s.AllowedTools) > 0 {
 			args = append(args, "--allowedTools", strings.Join(s.AllowedTools, ","))
 		}
+		// stream-json + verbose makes claude emit one JSON event per line as it
+		// runs, which Run relays to Spec.Progress as live progress. Placed
+		// before --print so the prompt remains the trailing positional.
+		if s.streaming() {
+			args = append(args, "--output-format", "stream-json", "--verbose")
+		}
 		return append(args, "--print", s.Invocation())
 	}
 }
@@ -209,13 +229,13 @@ func Run(ctx context.Context, s Spec) error {
 
 	cmd := exec.CommandContext(ctx, bin, s.Args()...)
 	var captured strings.Builder
-	cmd.Stdout = s.Stdout
 	if s.Stderr != nil {
 		cmd.Stderr = s.Stderr
 	} else {
 		cmd.Stderr = &captured
 	}
-	if err := cmd.Run(); err != nil {
+
+	fail := func(err error) error {
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
@@ -223,6 +243,29 @@ func Run(ctx context.Context, s Spec) error {
 			return fmt.Errorf("%s run failed: %w\n%s", s.Engine, err, captured.String())
 		}
 		return fmt.Errorf("%s run failed: %w", s.Engine, err)
+	}
+
+	if s.streaming() {
+		// Pipe stdout (stream-json) through the parser, which relays one
+		// progress line per event to Spec.Progress while the process runs.
+		stdout, err := cmd.StdoutPipe()
+		if err != nil {
+			return fmt.Errorf("%s: stdout pipe: %w", s.Engine, err)
+		}
+		if err := cmd.Start(); err != nil {
+			return fail(err)
+		}
+		// A broken stream shouldn't fail the run; wait for the real exit status.
+		_, _ = relayProgress(stdout, s.Progress)
+		if err := cmd.Wait(); err != nil {
+			return fail(err)
+		}
+		return nil
+	}
+
+	cmd.Stdout = s.Stdout
+	if err := cmd.Run(); err != nil {
+		return fail(err)
 	}
 	return nil
 }

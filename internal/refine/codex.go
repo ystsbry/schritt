@@ -15,11 +15,8 @@ type CodexRefiner struct {
 	Bin string
 	// Model optionally pins a model. Empty uses the codex CLI default.
 	Model string
-	// Progress, if set, receives human-readable progress lines while the CLI
-	// runs (e.g. for the TUI to surface). Optional.
-	Progress func(string)
 }
 
-func (c *CodexRefiner) Refine(ctx context.Context, in Input) (Result, error) {
-	return run(ctx, in, agent.Codex, c.Bin, c.Model, c.Progress)
+func (c *CodexRefiner) Refine(ctx context.Context, in Input, progress func(string)) (Result, error) {
+	return run(ctx, in, agent.Codex, c.Bin, c.Model, progress)
 }

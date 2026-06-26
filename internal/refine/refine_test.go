@@ -17,7 +17,7 @@ func TestRefineRejectsBadRepoPath(t *testing.T) {
 	bin := fakeCLI(t)
 	_, err := (&ClaudeRefiner{Bin: bin}).Refine(context.Background(), Input{
 		PBINumber: 1, PBIBody: "x", RepoPaths: []string{"/no/such/dir/schritt-test"},
-	})
+	}, nil)
 	if err == nil {
 		t.Fatalf("expected error for non-existent repo path")
 	}
@@ -64,7 +64,7 @@ func TestRefinersRunEndToEnd(t *testing.T) {
 		"codex":  &CodexRefiner{Bin: bin},
 	}
 	for name, r := range refiners {
-		res, err := r.Refine(context.Background(), in)
+		res, err := r.Refine(context.Background(), in, nil)
 		if err != nil {
 			t.Fatalf("%s Refine: %v", name, err)
 		}
@@ -103,7 +103,7 @@ func TestRefinerReportsMissingSections(t *testing.T) {
 	if err := os.WriteFile(bin, []byte("#!/usr/bin/env bash\nexit 0\n"), 0o755); err != nil {
 		t.Fatalf("write noop: %v", err)
 	}
-	_, err := (&CodexRefiner{Bin: bin}).Refine(context.Background(), Input{PBINumber: 1, PBIBody: "x"})
+	_, err := (&CodexRefiner{Bin: bin}).Refine(context.Background(), Input{PBINumber: 1, PBIBody: "x"}, nil)
 	if err == nil {
 		t.Fatalf("expected error when no section files are produced")
 	}
@@ -113,7 +113,7 @@ func TestRefinerReportsMissingSections(t *testing.T) {
 }
 
 func TestRefinerMissingBinary(t *testing.T) {
-	_, err := (&CodexRefiner{Bin: "schritt-no-such-codex-bin"}).Refine(context.Background(), Input{PBINumber: 1, PBIBody: "x"})
+	_, err := (&CodexRefiner{Bin: "schritt-no-such-codex-bin"}).Refine(context.Background(), Input{PBINumber: 1, PBIBody: "x"}, nil)
 	if err == nil {
 		t.Fatalf("expected error for missing binary")
 	}

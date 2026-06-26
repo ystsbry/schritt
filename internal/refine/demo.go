@@ -3,6 +3,7 @@ package refine
 import (
 	"context"
 	"fmt"
+	"time"
 )
 
 // DemoRefiner returns canned sections without calling any AI. It exists so the
@@ -10,8 +11,26 @@ import (
 // and via `schritt refinement --demo` — with no `claude` dependency.
 type DemoRefiner struct{}
 
-func (DemoRefiner) Refine(_ context.Context, in Input) (Result, error) {
+func (DemoRefiner) Refine(ctx context.Context, in Input, progress func(string)) (Result, error) {
 	n := in.PBINumber
+	// Emit a few simulated progress lines so `--demo` exercises the live
+	// progress view the real engines drive via stream-json.
+	if progress != nil {
+		for _, line := range []string{
+			"claude セッション開始",
+			"Read: pbi.md",
+			fmt.Sprintf("Skill: refine-pbi (PBI #%d)", n),
+			"Write: po_questions.md",
+			"Write: implementation/01-design.md",
+		} {
+			select {
+			case <-ctx.Done():
+				return Result{}, ctx.Err()
+			case <-time.After(120 * time.Millisecond):
+			}
+			progress(line)
+		}
+	}
 	return Result{
 		POQuestions: fmt.Sprintf(`# POへの確認事項 (PBI #%d)
 

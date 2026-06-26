@@ -52,5 +52,11 @@ type Doc struct {
 type Refiner interface {
 	// Refine runs the refinement. Implementations should honour ctx for
 	// cancellation (e.g. the user quitting mid-run).
-	Refine(ctx context.Context, in Input) (Result, error)
+	//
+	// progress, if non-nil, receives human-readable progress lines as the
+	// refinement runs (the underlying AI CLI's tool calls and messages), so a
+	// caller such as the TUI can surface live progress. It may be called from a
+	// goroutine other than the caller's; implementations must not assume it is
+	// safe to call after Refine returns.
+	Refine(ctx context.Context, in Input, progress func(string)) (Result, error)
 }

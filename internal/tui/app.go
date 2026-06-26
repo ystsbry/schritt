@@ -55,6 +55,18 @@ type refineDoneMsg struct {
 	err error
 }
 
+// progressMsg carries one live progress line from the running refinement. done
+// is true when the progress channel is closed (the run has finished emitting),
+// which stops the wait loop.
+type progressMsg struct {
+	line string
+	done bool
+}
+
+// maxProgressLines bounds how many recent progress lines the running view keeps
+// so a long refinement doesn't grow the slice (or the screen) unboundedly.
+const maxProgressLines = 200
+
 // App is the root Bubble Tea model.
 type App struct {
 	km      keys.KeyMap
@@ -70,6 +82,11 @@ type App struct {
 	ref      *model.Refinement
 	pending  views.SubmitMsg
 	viewOnly bool
+
+	// progressCh streams live progress lines from the running refinement to
+	// the Update loop; progressLog holds the (tail-bounded) lines to render.
+	progressCh  chan string
+	progressLog []string
 
 	cmdMode   bool
 	cmdInput  textinput.Model
@@ -127,8 +144,22 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case views.SubmitMsg:
 		a.pending = m
 		a.state = viewRunning
+		a.progressLog = nil
+		a.progressCh = make(chan string, 256)
 		a.clearStatus()
-		return a, tea.Batch(a.spinner.Tick, a.runRefine(m))
+		return a, tea.Batch(a.spinner.Tick, a.runRefine(m, a.progressCh), waitForProgress(a.progressCh))
+
+	case progressMsg:
+		// Stop waiting once the channel closes or we've left the running view
+		// (e.g. the run already finished). Otherwise append and keep waiting.
+		if m.done || a.state != viewRunning {
+			return a, nil
+		}
+		a.progressLog = append(a.progressLog, m.line)
+		if n := len(a.progressLog); n > maxProgressLines {
+			a.progressLog = a.progressLog[n-maxProgressLines:]
+		}
+		return a, waitForProgress(a.progressCh)
 
 	case refineDoneMsg:
 		if m.err != nil {
@@ -239,21 +270,38 @@ func (a *App) forwardSize() {
 }
 
 // runRefine returns a command that performs the AI refinement, persists it,
-// and loads it back — all off the UI goroutine.
-func (a *App) runRefine(in views.SubmitMsg) tea.Cmd {
+// and loads it back — all off the UI goroutine. Progress lines emitted by the
+// refiner are forwarded to progressCh, which the Update loop drains via
+// waitForProgress; the channel is closed once the refinement stops emitting.
+func (a *App) runRefine(in views.SubmitMsg, progressCh chan string) tea.Cmd {
 	refiner := a.refiner
 	home := a.home
 	mdl := a.model
 	return func() tea.Msg {
+		// progress runs on this goroutine (the refiner calls it synchronously),
+		// so there are no concurrent sends; closing after Refine returns is safe.
+		defer close(progressCh)
 		if refiner == nil {
 			return refineDoneMsg{err: fmt.Errorf("no refiner configured")}
+		}
+		progress := func(line string) {
+			line = strings.TrimSpace(line)
+			if line == "" {
+				return
+			}
+			// Buffered channel; drop the line rather than block the refiner if
+			// the UI somehow falls far behind.
+			select {
+			case progressCh <- line:
+			default:
+			}
 		}
 		res, err := refiner.Refine(context.Background(), refine.Input{
 			PBINumber: in.PBINumber,
 			PBIBody:   in.PBIBody,
 			Notes:     in.Notes,
 			RepoPaths: in.RepoPaths,
-		})
+		}, progress)
 		if err != nil {
 			return refineDoneMsg{err: err}
 		}
@@ -274,6 +322,19 @@ func (a *App) runRefine(in views.SubmitMsg) tea.Cmd {
 			return refineDoneMsg{err: err}
 		}
 		return refineDoneMsg{ref: ref}
+	}
+}
+
+// waitForProgress blocks on the progress channel and returns the next line as a
+// progressMsg. A closed channel yields progressMsg{done: true}, which stops the
+// loop. The Update handler re-issues this command after each line.
+func waitForProgress(ch chan string) tea.Cmd {
+	return func() tea.Msg {
+		line, ok := <-ch
+		if !ok {
+			return progressMsg{done: true}
+		}
+		return progressMsg{line: line}
 	}
 }
 
@@ -353,7 +414,57 @@ func (a *App) runningView() string {
 		Render("schritt refinement")
 	line := fmt.Sprintf("%s PBI #%d をリファインメント中…", a.spinner.View(), a.pending.PBINumber)
 	hint := lipgloss.NewStyle().Faint(true).Render("refine-pbi skill を呼び出しています。完了までお待ちください。")
-	return lipgloss.JoinVertical(lipgloss.Left, title, "", line, "", hint)
+
+	parts := []string{title, "", line, "", hint}
+	if log := a.progressLogView(); log != "" {
+		parts = append(parts, "", log)
+	}
+	return lipgloss.JoinVertical(lipgloss.Left, parts...)
+}
+
+// progressLogView renders the tail of the live progress log, sized to the
+// remaining screen height. Empty until the first line arrives.
+func (a *App) progressLogView() string {
+	if len(a.progressLog) == 0 {
+		return ""
+	}
+	// Leave room for the 5 header rows (title, blank, spinner, blank, hint),
+	// one blank separator, and the bottom bar. Fall back to a small window when
+	// the height isn't known yet.
+	avail := a.height - 8
+	if avail < 3 {
+		avail = 3
+	}
+	lines := a.progressLog
+	if len(lines) > avail {
+		lines = lines[len(lines)-avail:]
+	}
+
+	width := a.width
+	if width <= 0 {
+		width = 80
+	}
+	arrow := lipgloss.NewStyle().Foreground(lipgloss.Color("244"))
+	text := lipgloss.NewStyle().Faint(true)
+	rendered := make([]string, len(lines))
+	for i, ln := range lines {
+		rendered[i] = arrow.Render("▸ ") + text.Render(truncateLine(ln, width-2))
+	}
+	return lipgloss.JoinVertical(lipgloss.Left, rendered...)
+}
+
+// truncateLine shortens s to at most width display cells (approximated by rune
+// count), appending an ellipsis when it overflows, so a long progress line
+// never wraps and pushes the layout around.
+func truncateLine(s string, width int) string {
+	if width <= 1 {
+		return ""
+	}
+	r := []rune(s)
+	if len(r) <= width {
+		return s
+	}
+	return string(r[:width-1]) + "…"
 }
 
 func (a *App) bottomBar() string {

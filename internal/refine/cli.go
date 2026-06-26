@@ -98,6 +98,7 @@ func run(ctx context.Context, in Input, engine, bin, model string, progress func
 		WorkDir:   work,
 		ExtraDirs: repoPaths,
 		SkillArgs: skillArgs,
+		Progress:  progress,
 	}); err != nil {
 		return Result{}, err
 	}
