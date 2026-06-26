@@ -13,8 +13,8 @@ import (
 )
 
 // List is the refinement result overview: a header identifying the PBI and a
-// selectable list of the refinement entries (single-file sections plus one row
-// per implementation step).
+// selectable list of the refinement entries (one row per item — confirmation
+// item, implementation step, or E2E scenario).
 type List struct {
 	ref     *model.Refinement
 	entries []model.Entry

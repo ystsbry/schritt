@@ -17,7 +17,10 @@ func TestSaveAndLoadRoundTrip(t *testing.T) {
 		PBITitle:  "ログイン機能",
 		PBIBody:   "# PBI\n\n本文",
 		Result: refine.Result{
-			POQuestions: "確認事項",
+			POQuestions: []refine.Doc{
+				{File: "01-acceptance.md", Title: "受け入れ条件", Body: "# 受け入れ条件\n\n確認\n"},
+				{File: "02-edge.md", Title: "想定外入力", Body: "# 想定外入力\n\n確認\n"},
+			},
 			Implementation: []refine.Doc{
 				{File: "01-design.md", Title: "設計", Body: "# 設計\n\n方針\n"},
 				{File: "02-build.md", Title: "実装", Body: "# 実装\n\n本体\n"},
@@ -35,13 +38,14 @@ func TestSaveAndLoadRoundTrip(t *testing.T) {
 		t.Fatalf("Save: %v", err)
 	}
 
-	// Directory layout: ~/pbi-123/{ts}/refinement.yml + single-file bodies +
-	// the implementation/ and integration_tests/ directories.
+	// Directory layout: ~/pbi-123/{ts}/refinement.yml + the po_questions/,
+	// implementation/ and integration_tests/ directories (all multi-file).
 	if got := filepath.Base(filepath.Dir(dir)); got != "pbi-123" {
 		t.Fatalf("expected parent dir pbi-123, got %q", got)
 	}
 	for _, f := range []string{
-		"refinement.yml", "pbi.md", "po_questions.md",
+		"refinement.yml", "pbi.md",
+		"po_questions/01-acceptance.md", "po_questions/02-edge.md",
 		"implementation/01-design.md", "implementation/02-build.md",
 		"integration_tests/01-happy.md",
 	} {
@@ -49,9 +53,8 @@ func TestSaveAndLoadRoundTrip(t *testing.T) {
 			t.Fatalf("expected %s to exist: %v", f, err)
 		}
 	}
-	// Unit tests removed; implementation.md / integration_tests.md must NOT
-	// exist (they are directories now).
-	for _, f := range []string{"unit_tests.md", "implementation.md", "integration_tests.md"} {
+	// Sections are directories now; the old single-file bodies must NOT exist.
+	for _, f := range []string{"unit_tests.md", "po_questions.md", "implementation.md", "integration_tests.md"} {
 		if _, err := os.Stat(filepath.Join(dir, f)); !os.IsNotExist(err) {
 			t.Fatalf("%s should not exist; got err=%v", f, err)
 		}
@@ -80,6 +83,10 @@ func TestSaveAndLoadRoundTrip(t *testing.T) {
 			t.Fatalf("section[%d] title = %q, want %q", i, s.Title, model.SectionTitle[s.ID])
 		}
 		switch s.ID {
+		case model.SectionPOQuestions:
+			if len(s.Steps) != 2 {
+				t.Fatalf("po_questions should have 2 items, got %d", len(s.Steps))
+			}
 		case model.SectionImplementation:
 			if len(s.Steps) != 2 {
 				t.Fatalf("implementation should have 2 steps, got %d", len(s.Steps))
@@ -100,9 +107,9 @@ func TestSaveAndLoadRoundTrip(t *testing.T) {
 		}
 	}
 
-	// Entries flatten: PO(1) + impl(2) + integ(1) = 4.
-	if got := len(r.Entries()); got != 4 {
-		t.Fatalf("expected 4 flattened entries, got %d", got)
+	// Entries flatten: PO(2) + impl(2) + integ(1) = 5.
+	if got := len(r.Entries()); got != 5 {
+		t.Fatalf("expected 5 flattened entries, got %d", got)
 	}
 }
 

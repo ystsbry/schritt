@@ -18,23 +18,14 @@ import (
 // source of truth for both engines.
 const skillName = "refine-pbi"
 
-// Directory sections: the skill writes one markdown file per step/scenario into
-// these subdirectories of the work dir. Keep in sync with SKILL.md and store.
+// Directory sections: the skill writes one markdown file per item (confirmation
+// item / step / scenario) into these subdirectories of the work dir. Keep in
+// sync with SKILL.md and store.
 const (
+	poQuestionsDirName    = "po_questions"
 	implementationDirName = "implementation"
 	integrationDirName    = "integration_tests"
 )
-
-// singleSectionFiles maps each single-file section's filename to the Result
-// field it populates. The implementation and integration sections are handled
-// separately because they are directories of files. Keep filenames in sync
-// with SKILL.md.
-var singleSectionFiles = []struct {
-	file string
-	set  func(*Result, string)
-}{
-	{"po_questions.md", func(r *Result, s string) { r.POQuestions = s }},
-}
 
 // run is the engine-agnostic refinement driver. The refine-pbi skill is
 // installed into the runtime's skill directory and invoked by name (via the
@@ -105,13 +96,10 @@ func run(ctx context.Context, in Input, engine, bin, model string, progress func
 
 	var res Result
 	var missing []string
-	for _, sf := range singleSectionFiles {
-		body, err := os.ReadFile(filepath.Join(work, sf.file))
-		if err != nil {
-			missing = append(missing, sf.file)
-			continue
-		}
-		sf.set(&res, normalizeBody(string(body)))
+	if docs, err := readDocs(filepath.Join(work, poQuestionsDirName)); err != nil || len(docs) == 0 {
+		missing = append(missing, poQuestionsDirName+"/*.md")
+	} else {
+		res.POQuestions = docs
 	}
 	if docs, err := readDocs(filepath.Join(work, implementationDirName)); err != nil || len(docs) == 0 {
 		missing = append(missing, implementationDirName+"/*.md")

@@ -50,9 +50,9 @@ type GeneratedBy struct {
 	Model string `yaml:"model,omitempty"`
 }
 
-// Step is one ordered part of a multi-file section. The implementation plan is
-// split into steps, each stored as its own markdown file under an
-// implementation/ directory and referenced by BodyFile.
+// Step is one ordered part of a multi-file section, stored as its own markdown
+// file under the section's directory and referenced by BodyFile — e.g. one PO
+// confirmation item, one implementation step, or one E2E scenario.
 type Step struct {
 	Title    string `yaml:"title"`
 	BodyFile string `yaml:"body_file"`
@@ -61,10 +61,12 @@ type Step struct {
 	Body string `yaml:"-"`
 }
 
-// Section is one part of the refinement result. Single-file sections (PO
-// questions, unit/integration tests) carry BodyFile. The implementation
-// section instead carries an ordered list of Steps, one markdown file each.
-// Body / Step.Body are derived on load and not persisted in the YAML.
+// Section is one part of the refinement result. Sections carry an ordered list
+// of Steps, one markdown file each (PO questions, implementation, integration
+// tests are all split per item). BodyFile is retained for backward
+// compatibility: refinements saved before the split stored single-file sections
+// as one BodyFile, and Load still reads those. Body / Step.Body are derived on
+// load and not persisted in the YAML.
 type Section struct {
 	ID       string `yaml:"id"`
 	Title    string `yaml:"title"`
@@ -76,8 +78,8 @@ type Section struct {
 }
 
 // Entry is a flattened, viewable unit of a refinement: one selectable row in
-// the TUI with a title and a markdown body. Single-file sections map to one
-// entry; the implementation section expands to one entry per step.
+// the TUI with a title and a markdown body. Each section expands to one entry
+// per step; a legacy single-file section maps to one entry.
 type Entry struct {
 	Title string
 	Body  string

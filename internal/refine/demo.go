@@ -20,7 +20,7 @@ func (DemoRefiner) Refine(ctx context.Context, in Input, progress func(string)) 
 			"claude セッション開始",
 			"Read: pbi.md",
 			fmt.Sprintf("Skill: refine-pbi (PBI #%d)", n),
-			"Write: po_questions.md",
+			"Write: po_questions/01-acceptance-criteria.md",
 			"Write: implementation/01-design.md",
 		} {
 			select {
@@ -32,12 +32,32 @@ func (DemoRefiner) Refine(ctx context.Context, in Input, progress func(string)) 
 		}
 	}
 	return Result{
-		POQuestions: fmt.Sprintf(`# POへの確認事項 (PBI #%d)
+		POQuestions: []Doc{
+			{
+				File:  "01-acceptance-criteria.md",
+				Title: "受け入れ条件の定義",
+				Body: fmt.Sprintf(`# 受け入れ条件の定義
 
-- 受け入れ条件の「対応済み」の定義を確認したい（UI表示まで？API応答まで？）。
-- 想定外の入力（空・極端に長い値）時の挙動は仕様化が必要か。
-- 既存機能との優先順位・リリース時期の制約はあるか。
+- PBI #%d の受け入れ条件「対応済み」の定義を確認したい（UI表示まで？API応答まで？）。
 `, n),
+			},
+			{
+				File:  "02-edge-cases.md",
+				Title: "想定外入力の扱い",
+				Body: `# 想定外入力の扱い
+
+- 想定外の入力（空・極端に長い値）時の挙動は仕様化が必要か。
+`,
+			},
+			{
+				File:  "03-priority.md",
+				Title: "優先順位・リリース制約",
+				Body: `# 優先順位・リリース制約
+
+- 既存機能との優先順位・リリース時期の制約はあるか。
+`,
+			},
+		},
 		Implementation: []Doc{
 			{
 				File:  "01-design.md",

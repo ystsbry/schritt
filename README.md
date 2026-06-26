@@ -61,7 +61,10 @@ revu に倣い、メタ情報を YAML、本文を markdown ファイルで管理
   refinement.yml          メタ情報 + 各セクションへの参照
   pbi.md                  入力したPBI（参照用に保存）
   notes.md                入力した補足メモ（あれば／参照用に保存）
-  po_questions.md         POへの確認事項
+  po_questions/           POへの確認事項（ディレクトリ。確認事項ごとに1ファイル）
+    01-acceptance-criteria.md
+    02-edge-cases.md
+    ...
   implementation/         実装内容（ディレクトリ。実装ステップごとに1ファイル）
     01-design.md
     02-implement.md
@@ -72,9 +75,9 @@ revu に倣い、メタ情報を YAML、本文を markdown ファイルで管理
     ...
 ```
 
-実装内容は **実装ステップごとのマークダウン** として `implementation/` 配下に出力されます
-（`01-`, `02-` のゼロ埋め連番で順序を保持）。`refinement.yml` の `implementation` セクションは
-各ステップを `steps` のリストとして参照します:
+各セクションは **項目ごとのマークダウン**（確認事項／実装ステップ／E2Eシナリオごとに1ファイル）
+として各ディレクトリ配下に出力されます（`01-`, `02-` のゼロ埋め連番で順序を保持）。
+`refinement.yml` の各セクションは項目を `steps` のリストとして参照します:
 
 ```yaml
 schema_version: 1
@@ -88,7 +91,11 @@ generated_by:
 sections:
     - id: po_questions
       title: POへの確認事項
-      body_file: po_questions.md
+      steps:
+        - title: 受け入れ条件の定義
+          body_file: po_questions/01-acceptance-criteria.md
+        - title: 想定外入力の扱い
+          body_file: po_questions/02-edge-cases.md
     - id: implementation
       title: 実装内容
       steps:

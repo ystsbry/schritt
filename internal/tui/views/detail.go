@@ -11,8 +11,8 @@ import (
 )
 
 // Detail renders one refinement entry's markdown body inside a scrollable
-// viewport. Entries are the flattened list (single-file sections plus one per
-// implementation step).
+// viewport. Entries are the flattened list (one per item — confirmation item,
+// implementation step, or E2E scenario).
 type Detail struct {
 	entries  []model.Entry
 	km       keys.KeyMap

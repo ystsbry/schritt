@@ -5,8 +5,8 @@
 //	~/.schritt/pbi-{N}/{timestamp}/
 //	  refinement.yml
 //	  pbi.md                 (the input, kept for reference)
-//	  po_questions.md
-//	  implementation/   (one markdown file per step)
+//	  po_questions/      (one markdown file per confirmation item)
+//	  implementation/    (one markdown file per step)
 //	  integration_tests/ (one markdown file per E2E scenario)
 package store
 
@@ -38,31 +38,24 @@ func Home() (string, error) {
 	return filepath.Join(h, ".schritt"), nil
 }
 
-// Directory sections hold one markdown file per step/scenario. Keep in sync
-// with the refine package and SKILL.md.
+// Directory sections hold one markdown file per item (confirmation item / step
+// / scenario). Keep in sync with the refine package and SKILL.md.
 const (
+	poQuestionsSubdir    = "po_questions"
 	implementationSubdir = "implementation"
 	integrationSubdir    = "integration_tests"
 )
 
-// singleSectionSpec ties each single-file section's ID to its body file and the
-// Result field that supplies its content. The implementation and integration
-// sections are handled separately because they are directories of files.
-var singleSectionSpec = []struct {
-	id   string
-	file string
-	body func(refine.Result) string
-}{
-	{model.SectionPOQuestions, "po_questions.md", func(r refine.Result) string { return r.POQuestions }},
-}
-
 // dirSectionSpec ties each directory section's ID to its subdir and the Result
-// docs that supply its files.
+// docs that supply its files. Every section is now multi-file: the PO questions
+// are split one file per confirmation item, mirroring how the implementation
+// and integration sections split into steps/scenarios.
 var dirSectionSpec = []struct {
 	id     string
 	subdir string
 	docs   func(refine.Result) []refine.Doc
 }{
+	{model.SectionPOQuestions, poQuestionsSubdir, func(r refine.Result) []refine.Doc { return r.POQuestions }},
 	{model.SectionImplementation, implementationSubdir, func(r refine.Result) []refine.Doc { return r.Implementation }},
 	{model.SectionIntegrationTests, integrationSubdir, func(r refine.Result) []refine.Doc { return r.Integration }},
 }
@@ -108,20 +101,7 @@ func Save(home string, in SaveInput) (string, error) {
 
 	byID := make(map[string]model.Section, len(model.SectionOrder))
 
-	// Single-file sections.
-	for _, spec := range singleSectionSpec {
-		body := spec.body(in.Result)
-		if err := os.WriteFile(filepath.Join(dir, spec.file), []byte(body), 0o644); err != nil {
-			return "", fmt.Errorf("write %s: %w", spec.file, err)
-		}
-		byID[spec.id] = model.Section{
-			ID:       spec.id,
-			Title:    model.SectionTitle[spec.id],
-			BodyFile: spec.file,
-		}
-	}
-
-	// Directory sections: one markdown file per step/scenario under a subdir.
+	// Directory sections: one markdown file per item under a subdir.
 	for _, spec := range dirSectionSpec {
 		sec := model.Section{ID: spec.id, Title: model.SectionTitle[spec.id]}
 		docs := spec.docs(in.Result)
@@ -209,10 +189,15 @@ func Load(dir string) (*model.Refinement, error) {
 			}
 			continue
 		}
-		// Single-file section.
+		// A section with neither steps nor a body file is an empty section
+		// (e.g. a refinement saved with no documents for it). Leave Body empty
+		// rather than erroring — every section is multi-file now, and an empty
+		// one is harmless in the viewer.
 		if s.BodyFile == "" {
-			return nil, fmt.Errorf("%s: sections[%d].body_file is required", yamlPath, i)
+			continue
 		}
+		// Legacy single-file section (refinements saved before the per-item
+		// split stored the body in one file).
 		body, err := os.ReadFile(filepath.Join(abs, s.BodyFile))
 		if err != nil {
 			return nil, fmt.Errorf("read section body %s: %w", s.BodyFile, err)

@@ -25,9 +25,9 @@ func TestRefineRejectsBadRepoPath(t *testing.T) {
 
 // fakeCLI writes a small executable that mimics an agent running the skill: it
 // scans its args for an existing directory (the work dir, passed via
-// --add-dir / --cd) and writes the single-file sections plus the
-// implementation/ and integration_tests/ directories into it. This exercises
-// the full read-back path for both engines without a real CLI/skill.
+// --add-dir / --cd) and writes the po_questions/, implementation/ and
+// integration_tests/ section directories into it. This exercises the full
+// read-back path for both engines without a real CLI/skill.
 func fakeCLI(t *testing.T) string {
 	t.Helper()
 	if runtime.GOOS == "windows" {
@@ -41,7 +41,9 @@ for a in "$@"; do
   if [ -d "$a" ]; then target="$a"; fi
 done
 if [ -z "$target" ]; then echo "no work dir in args" >&2; exit 1; fi
-printf '# %s\n\n本文\n' "po_questions" > "$target/po_questions.md"
+mkdir -p "$target/po_questions"
+printf '# 受け入れ条件\n\n本文\n' > "$target/po_questions/01-acceptance.md"
+printf '# 想定外入力\n\n本文\n' > "$target/po_questions/02-edge.md"
 mkdir -p "$target/implementation"
 printf '# 設計\n\n本文\n' > "$target/implementation/01-design.md"
 printf '# 実装\n\n本文\n' > "$target/implementation/02-build.md"
@@ -68,8 +70,15 @@ func TestRefinersRunEndToEnd(t *testing.T) {
 		if err != nil {
 			t.Fatalf("%s Refine: %v", name, err)
 		}
-		if strings.TrimSpace(res.POQuestions) == "" {
-			t.Fatalf("%s: POQuestions is empty", name)
+		// PO questions are read back as ordered docs from po_questions/.
+		if len(res.POQuestions) != 2 {
+			t.Fatalf("%s: expected 2 PO questions, got %d", name, len(res.POQuestions))
+		}
+		if res.POQuestions[0].File != "01-acceptance.md" || res.POQuestions[1].File != "02-edge.md" {
+			t.Fatalf("%s: PO questions out of order: %+v", name, res.POQuestions)
+		}
+		if res.POQuestions[0].Title != "受け入れ条件" {
+			t.Fatalf("%s: PO question title should come from heading, got %q", name, res.POQuestions[0].Title)
 		}
 		// Implementation is read back as ordered docs from implementation/.
 		if len(res.Implementation) != 2 {
@@ -107,7 +116,7 @@ func TestRefinerReportsMissingSections(t *testing.T) {
 	if err == nil {
 		t.Fatalf("expected error when no section files are produced")
 	}
-	if !strings.Contains(err.Error(), "po_questions.md") || !strings.Contains(err.Error(), "install-codex") {
+	if !strings.Contains(err.Error(), "po_questions/*.md") || !strings.Contains(err.Error(), "install-codex") {
 		t.Fatalf("expected missing-file + install hint, got: %v", err)
 	}
 }
