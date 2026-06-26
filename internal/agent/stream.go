@@ -9,15 +9,15 @@ import (
 	"strings"
 )
 
-// relayProgress reads stream-json events from r (the claude CLI's stdout when
-// run with --output-format stream-json --verbose) and emits one compact,
+// relayClaudeProgress reads stream-json events from r (the claude CLI's stdout
+// when run with --output-format stream-json --verbose) and emits one compact,
 // human-readable progress line per meaningful event via emit. It returns the
 // session_id observed on the system/init event (empty if absent) and the
 // scanner error, if any.
 //
 // Unknown / unparseable lines are silently skipped — claude may add new event
 // types over time, and missing a line is preferable to crashing mid-run.
-func relayProgress(r io.Reader, emit func(string)) (string, error) {
+func relayClaudeProgress(r io.Reader, emit func(string)) (string, error) {
 	sc := bufio.NewScanner(r)
 	// Stream-json lines can be large (assistant messages embed markdown
 	// bodies). Bump the scanner's max token size well past the default 64 KiB.
@@ -25,23 +25,23 @@ func relayProgress(r io.Reader, emit func(string)) (string, error) {
 
 	var sessionID string
 	for sc.Scan() {
-		var ev streamEvent
+		var ev claudeStreamEvent
 		if err := json.Unmarshal(sc.Bytes(), &ev); err != nil {
 			continue
 		}
 		if ev.Type == "system" && ev.Subtype == "init" && ev.SessionID != "" {
 			sessionID = ev.SessionID
 		}
-		renderEvent(emit, ev)
+		renderClaudeEvent(emit, ev)
 	}
 	return sessionID, sc.Err()
 }
 
-type streamEvent struct {
-	Type      string         `json:"type"`
-	Subtype   string         `json:"subtype,omitempty"`
-	SessionID string         `json:"session_id,omitempty"`
-	Message   *streamMessage `json:"message,omitempty"`
+type claudeStreamEvent struct {
+	Type      string               `json:"type"`
+	Subtype   string               `json:"subtype,omitempty"`
+	SessionID string               `json:"session_id,omitempty"`
+	Message   *claudeStreamMessage `json:"message,omitempty"`
 
 	// result fields (only set on type=="result")
 	DurationMs int  `json:"duration_ms,omitempty"`
@@ -49,20 +49,20 @@ type streamEvent struct {
 	IsError    bool `json:"is_error,omitempty"`
 }
 
-type streamMessage struct {
-	Content []streamBlock `json:"content"`
+type claudeStreamMessage struct {
+	Content []claudeStreamBlock `json:"content"`
 }
 
-type streamBlock struct {
+type claudeStreamBlock struct {
 	Type  string          `json:"type"`
 	Text  string          `json:"text,omitempty"`
 	Name  string          `json:"name,omitempty"`
 	Input json.RawMessage `json:"input,omitempty"`
 }
 
-// renderEvent turns one stream event into zero or more progress lines, each
-// passed to emit.
-func renderEvent(emit func(string), ev streamEvent) {
+// renderClaudeEvent turns one stream event into zero or more progress lines,
+// each passed to emit.
+func renderClaudeEvent(emit func(string), ev claudeStreamEvent) {
 	switch ev.Type {
 	case "system":
 		if ev.Subtype == "init" {
@@ -93,10 +93,10 @@ func renderEvent(emit func(string), ev streamEvent) {
 	}
 }
 
-// summarizeToolUse returns (one-line summary, optional detail). Falls back to
-// the bare tool name when the input shape isn't recognised so the user still
-// sees that something happened.
-func summarizeToolUse(b streamBlock) (string, string) {
+// summarizeToolUse returns (one-line summary, optional detail) for a Claude
+// tool_use block. Falls back to the bare tool name when the input shape isn't
+// recognised so the user still sees that something happened.
+func summarizeToolUse(b claudeStreamBlock) (string, string) {
 	var in map[string]any
 	if len(b.Input) > 0 {
 		_ = json.Unmarshal(b.Input, &in)
@@ -144,7 +144,8 @@ func summarizeToolUse(b streamBlock) (string, string) {
 	}
 }
 
-// shortPath replaces $HOME with ~ so progress lines stay scannable.
+// shortPath replaces $HOME with ~ so progress lines stay scannable. Shared by
+// the Claude and Codex relays.
 func shortPath(p string) string {
 	if p == "" {
 		return ""

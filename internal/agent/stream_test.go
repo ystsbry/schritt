@@ -20,11 +20,11 @@ func TestRelayProgressSummarizesEvents(t *testing.T) {
 	}, "\n")
 
 	var got []string
-	sid, err := relayProgress(strings.NewReader(transcript), func(s string) {
+	sid, err := relayClaudeProgress(strings.NewReader(transcript), func(s string) {
 		got = append(got, s)
 	})
 	if err != nil {
-		t.Fatalf("relayProgress: %v", err)
+		t.Fatalf("relayClaudeProgress: %v", err)
 	}
 	if sid != "sess-123" {
 		t.Fatalf("session id = %q, want sess-123", sid)
@@ -47,21 +47,72 @@ func TestRelayProgressSummarizesEvents(t *testing.T) {
 	}
 }
 
-func TestStreamingFlagsOnlyForClaudeWithProgress(t *testing.T) {
+func TestStreamingFlagsByEngineAndProgress(t *testing.T) {
 	emit := func(string) {}
 
-	withProgress := Spec{Engine: Claude, SkillName: "refine-pbi", WorkDir: "/work", Progress: emit}.Args()
-	if !strings.Contains(strings.Join(withProgress, " "), "--output-format stream-json --verbose") {
-		t.Errorf("claude + Progress should add stream-json flags, got %v", withProgress)
+	claudeOn := strings.Join(Spec{Engine: Claude, SkillName: "refine-pbi", WorkDir: "/work", Progress: emit}.Args(), " ")
+	if !strings.Contains(claudeOn, "--output-format stream-json --verbose") {
+		t.Errorf("claude + Progress should add stream-json flags, got %q", claudeOn)
 	}
 
-	noProgress := Spec{Engine: Claude, SkillName: "refine-pbi", WorkDir: "/work"}.Args()
-	if strings.Contains(strings.Join(noProgress, " "), "stream-json") {
-		t.Errorf("claude without Progress should not add stream-json flags, got %v", noProgress)
+	claudeOff := strings.Join(Spec{Engine: Claude, SkillName: "refine-pbi", WorkDir: "/work"}.Args(), " ")
+	if strings.Contains(claudeOff, "stream-json") {
+		t.Errorf("claude without Progress should not add stream-json flags, got %q", claudeOff)
 	}
 
-	codex := Spec{Engine: Codex, SkillName: "refine-pbi", WorkDir: "/work", Progress: emit}.Args()
-	if strings.Contains(strings.Join(codex, " "), "stream-json") {
-		t.Errorf("codex should never add stream-json flags, got %v", codex)
+	codexOn := strings.Join(Spec{Engine: Codex, SkillName: "refine-pbi", WorkDir: "/work", Progress: emit}.Args(), " ")
+	if !strings.Contains(codexOn, "--json") {
+		t.Errorf("codex + Progress should add --json, got %q", codexOn)
+	}
+	if strings.Contains(codexOn, "stream-json") {
+		t.Errorf("codex should use --json, not stream-json, got %q", codexOn)
+	}
+
+	codexOff := strings.Join(Spec{Engine: Codex, SkillName: "refine-pbi", WorkDir: "/work"}.Args(), " ")
+	if strings.Contains(codexOff, "--json") {
+		t.Errorf("codex without Progress should not add --json, got %q", codexOff)
+	}
+}
+
+// TestRelayCodexProgressSummarizesEvents feeds a representative `codex exec
+// --json` transcript and asserts each meaningful item becomes a compact line.
+func TestRelayCodexProgressSummarizesEvents(t *testing.T) {
+	transcript := strings.Join([]string{
+		`{"type":"thread.started","thread_id":"thr-9"}`,
+		`{"type":"turn.started"}`,
+		`{"type":"item.completed","item":{"type":"reasoning","text":"考え中"}}`,
+		`{"type":"item.completed","item":{"type":"agent_message","text":"PBIを確認します\n詳細は省略"}}`,
+		`{"type":"item.completed","item":{"type":"file_read","path":"/work/pbi.md"}}`,
+		`{"type":"item.completed","item":{"type":"command_executed","command":"go test ./...","exit_code":1}}`,
+		`{"type":"item.completed","item":{"type":"file_write","path":"/work/po_questions.md"}}`,
+		`oops not json`,
+		`{"type":"turn.completed","usage":{"input_tokens":10}}`,
+	}, "\n")
+
+	var got []string
+	sid, err := relayCodexProgress(strings.NewReader(transcript), func(s string) {
+		got = append(got, s)
+	})
+	if err != nil {
+		t.Fatalf("relayCodexProgress: %v", err)
+	}
+	if sid != "thr-9" {
+		t.Fatalf("thread id = %q, want thr-9", sid)
+	}
+
+	want := []string{
+		"codex セッション開始",
+		"PBIを確認します", // reasoning is suppressed; only the first line of agent_message
+		"Read: /work/pbi.md",
+		"Bash: go test ./... — exit 1",
+		"Write: /work/po_questions.md",
+	}
+	if len(got) != len(want) {
+		t.Fatalf("got %d lines %q, want %d %q", len(got), got, len(want), want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("line %d = %q, want %q", i, got[i], want[i])
+		}
 	}
 }

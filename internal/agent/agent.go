@@ -67,20 +67,20 @@ type Spec struct {
 	// includes it in the returned error.
 	Stdout io.Writer
 	Stderr io.Writer
-	// Progress, if set, enables live progress reporting: the Claude engine is
-	// run with `--output-format stream-json --verbose`, and each event (tool
-	// call, assistant text, …) is summarized to one human-readable line passed
-	// to Progress as it happens — so a caller (e.g. the TUI) can surface what
-	// the skill is doing instead of a bare spinner. Only wired for the Claude
-	// engine; ignored for Codex. When set, Stdout is consumed by the parser and
-	// not written to (the stream-json is machine output, not prose).
+	// Progress, if set, enables live progress reporting: the engine is run in
+	// its streaming mode (Claude: `--output-format stream-json --verbose`;
+	// Codex: `exec --json`), and each event (tool call, assistant text, …) is
+	// summarized to one human-readable line passed to Progress as it happens —
+	// so a caller (e.g. the TUI) can surface what the skill is doing instead of
+	// a bare spinner. When set, Stdout is consumed by the parser and not written
+	// to (the streamed JSON is machine output, not prose).
 	Progress func(string)
 }
 
-// streaming reports whether this spec should run Claude in stream-json mode and
-// relay parsed progress lines to Progress.
+// streaming reports whether this spec should run the engine in streaming mode
+// and relay parsed progress lines to Progress. Both engines are supported.
 func (s Spec) streaming() bool {
-	return s.Progress != nil && s.Engine == Claude
+	return s.Progress != nil && (s.Engine == Claude || s.Engine == Codex)
 }
 
 // MCPServer describes a stdio MCP server to expose to the agent. The agent's
@@ -161,6 +161,11 @@ func (s Spec) Args() []string {
 				js, _ := json.Marshal(m.Args)
 				args = append(args, "-c", fmt.Sprintf("mcp_servers.%s.args=%s", m.Name, string(js)))
 			}
+		}
+		// --json makes codex emit one JSON event per line on stdout, which Run
+		// relays to Spec.Progress as live progress.
+		if s.streaming() {
+			args = append(args, "--json")
 		}
 		if s.Model != "" {
 			args = append(args, "--model", s.Model)
@@ -256,7 +261,11 @@ func Run(ctx context.Context, s Spec) error {
 			return fail(err)
 		}
 		// A broken stream shouldn't fail the run; wait for the real exit status.
-		_, _ = relayProgress(stdout, s.Progress)
+		if s.Engine == Codex {
+			_, _ = relayCodexProgress(stdout, s.Progress)
+		} else {
+			_, _ = relayClaudeProgress(stdout, s.Progress)
+		}
 		if err := cmd.Wait(); err != nil {
 			return fail(err)
 		}
